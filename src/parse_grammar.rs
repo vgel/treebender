@@ -1,5 +1,4 @@
 /// Simple recursive-descent parsing of grammar files
-
 use regex::Regex;
 use std::collections::HashSet;
 
@@ -250,7 +249,7 @@ fn parse_rule(s: &str) -> ParseResult<ParsedRule> {
 /// unify between them
 /// So we have the rule symbol "adopt" the features of its children, copying the
 /// child features into child-0.(...), child-1.(...), etc.
-/// 
+///
 /// We could try to implement this when constructing the rule, but it's easier
 /// to do as a simple AST transform.
 fn adopt_child_features(r: ParsedRule) -> ParsedRule {
@@ -296,10 +295,7 @@ fn parse_rules(s: &str) -> Result<Vec<ParsedRule>, Err> {
 }
 
 fn make_symbol(s: ParsedSymbolOrTerminal) -> Result<Symbol, Err> {
-  let features = s
-    .features
-    .into_iter()
-    .collect::<Vec<_>>();
+  let features = s.features.into_iter().collect::<Vec<_>>();
   let symbol = Symbol::new(s.name, NodeRef::new_from_paths(features)?);
   Ok(symbol)
 }

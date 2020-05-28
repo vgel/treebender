@@ -33,7 +33,6 @@ impl NodeRef {
     Self::new(Node::new_str(s))
   }
 
-
   /// Creates a NodeRef from a list of (name, noderef) features. Names CANNOT be dotted!
   pub fn new_with_edges<I>(edges: I) -> Result<Self, Err>
   where
@@ -41,7 +40,10 @@ impl NodeRef {
   {
     let mut n = Node::new_edged();
     for (label, target) in edges {
-      assert!(!label.contains('.'), "new_with_edges cannot take dotted paths!");
+      assert!(
+        !label.contains('.'),
+        "new_with_edges cannot take dotted paths!"
+      );
 
       n.push_edge(label, target)?;
     }
@@ -51,7 +53,7 @@ impl NodeRef {
   // List of (name, value, tag) triples
   pub fn new_from_paths<I>(paths: I) -> Result<NodeRef, Err>
   where
-    I: IntoIterator<Item = ParsedFeature>
+    I: IntoIterator<Item = ParsedFeature>,
   {
     let this: NodeRef = Node::new_edged().into();
 

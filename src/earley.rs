@@ -1,8 +1,8 @@
 use std::fmt;
 use std::rc::Rc;
 
-use crate::rules::{Production, Rule};
 use crate::grammar::Grammar;
+use crate::rules::{Production, Rule};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LR0 {
@@ -12,7 +12,10 @@ pub struct LR0 {
 
 impl LR0 {
   pub fn new(rule: &Rc<Rule>) -> Self {
-    Self { rule: rule.clone(), pos: 0 }
+    Self {
+      rule: rule.clone(),
+      pos: 0,
+    }
   }
 
   pub fn is_active(&self) -> bool {
@@ -207,4 +210,3 @@ fn scanner(chart: &mut Chart, k: usize, state: &State, input: &[&str]) {
     chart.add(k + 1, state.advance());
   }
 }
-

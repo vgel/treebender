@@ -1,13 +1,13 @@
 #[macro_use]
 extern crate lazy_static;
 
-pub mod featurestructure;
 pub mod earley;
-pub mod rules;
-pub mod syntree;
+pub mod featurestructure;
 pub mod forest;
 pub mod grammar;
 pub mod parse_grammar;
+pub mod rules;
+pub mod syntree;
 
 use grammar::Grammar;
 
@@ -56,17 +56,21 @@ const GRAMMAR: &str = r#"
 "#;
 
 fn main() -> Result<(), Err> {
-    let g: Grammar = GRAMMAR.parse()?;
+  let g: Grammar = GRAMMAR.parse()?;
 
-    let sentence = "He said that Sue kissed Mary".to_ascii_lowercase();
-    let sentence = sentence.split(' ').collect::<Vec<_>>();
+  let sentence = "He said that Sue kissed Mary".to_ascii_lowercase();
+  let sentence = sentence.split(' ').collect::<Vec<_>>();
 
-    let trees = g.parse(&sentence);
+  let trees = g.parse(&sentence);
 
-    println!("Parsed {} tree{}", trees.len(), if trees.len() == 1 { "" } else { "s" });
-    for t in trees {
-        println!("{}", t);
-    }
+  println!(
+    "Parsed {} tree{}",
+    trees.len(),
+    if trees.len() == 1 { "" } else { "s" }
+  );
+  for t in trees {
+    println!("{}", t);
+  }
 
-    Ok(())
+  Ok(())
 }

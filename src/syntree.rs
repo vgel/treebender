@@ -1,7 +1,4 @@
 use std::fmt;
-use std::rc::Rc;
-
-use crate::rules::Rule;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Constituent<T> {
@@ -75,19 +72,29 @@ impl<T, U> SynTree<T, U> {
     }
   }
 
-  pub fn map<V, W>(&self, map_branch: fn(&Constituent<T>) -> V, map_leaf: fn(&Word<U>) -> W) -> SynTree<V, W> {
+  pub fn map<V, W>(
+    &self,
+    map_branch: fn(&Constituent<T>) -> V,
+    map_leaf: fn(&Word<U>) -> W,
+  ) -> SynTree<V, W> {
     match self {
       Self::Branch(t, children) => {
-        let children = children.iter().map(|c| c.map(map_branch, map_leaf)).collect::<Vec<_>>();
+        let children = children
+          .iter()
+          .map(|c| c.map(map_branch, map_leaf))
+          .collect::<Vec<_>>();
         SynTree::Branch(
           Constituent {
             span: t.span,
             value: map_branch(&t),
           },
-          children
+          children,
         )
-      },
-      Self::Leaf(u) => SynTree::Leaf(Word { span: u.span, value: map_leaf(u) }),
+      }
+      Self::Leaf(u) => SynTree::Leaf(Word {
+        span: u.span,
+        value: map_leaf(u),
+      }),
     }
   }
 }

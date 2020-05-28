@@ -10,10 +10,7 @@ pub struct Symbol {
 
 impl Symbol {
   pub fn new(name: String, features: NodeRef) -> Self {
-    Self {
-      name,
-      features,
-    }
+    Self { name, features }
   }
 }
 
