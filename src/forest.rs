@@ -301,67 +301,71 @@ pub fn unify_tree(tree: SynTree<Rc<Rule>, String>) -> Result<NodeRef, Err> {
   }
 }
 
-// #[test]
-// fn test_parse_chart() {
-//   let g = Grammar::parse(
-//     "S".to_string(),
-//     r#"
-//       S -> x
-//       S -> S S
-//     "#,
-//   )
-//   .unwrap();
+#[test]
+fn test_parse_chart() {
+  let g: Grammar = r#"
+    S -> x;
+    S -> S S;
+  "#
+  .parse()
+  .unwrap();
 
-//   let get_rule_with_len = |len: usize| {
-//     g.rules
-//       .get("S")
-//       .unwrap()
-//       .iter()
-//       .find(|r| r.len() == len)
-//       .unwrap()
-//   };
+  let get_rule_with_len = |len: usize| {
+    g.rules
+      .get("S")
+      .unwrap()
+      .iter()
+      .find(|r| r.len() == len)
+      .unwrap()
+  };
 
-//   let rule1 = get_rule_with_len(1);
-//   let rule2 = get_rule_with_len(2);
+  let rule1 = get_rule_with_len(1);
+  let rule2 = get_rule_with_len(2);
 
-//   let forest: Forest = crate::earley::parse_chart(&g, &["x", "x", "x"]).into();
+  let forest: Forest = crate::earley::parse_chart(&g, &["x", "x", "x"]).into();
 
-//   assert_eq!(
-//     forest,
-//     Forest(vec![
-//       vec![
-//         ForestState::new(&rule1, 0, 1),
-//         ForestState::new(&rule2, 0, 2),
-//         ForestState::new(&rule2, 0, 3),
-//       ],
-//       vec![
-//         ForestState::new(&rule1, 1, 2),
-//         ForestState::new(&rule2, 1, 3),
-//       ],
-//       vec![ForestState::new(&rule1, 2, 3)],
-//     ])
-//   );
+  assert_eq!(
+    forest,
+    Forest(vec![
+      vec![
+        ForestState::new(&rule1, 0, 1),
+        ForestState::new(&rule2, 0, 2),
+        ForestState::new(&rule2, 0, 3),
+      ],
+      vec![
+        ForestState::new(&rule1, 1, 2),
+        ForestState::new(&rule2, 1, 3),
+      ],
+      vec![ForestState::new(&rule1, 2, 3)],
+    ])
+  );
 
-//   println!("{}", forest);
-// }
+  println!("{}", forest);
+}
 
-// #[test]
-// fn test_tree_generation() {
-//   let g = Grammar::parse(
-//     "S".to_string(),
-//     r#"
-//       S -> x
-//       S -> S S
-//     "#,
-//   )
-//   .unwrap();
+#[test]
+fn test_tree_generation() {
+  // test the tree ambiguity problem that naive earley forest processing has
+  // correct algorithm finds 2 trees:
+  //  (S (S x) (S (S x) (S x)))           -> [x][xx]
+  //  (S (S (S x) (S x)) (S x))           -> [xx][x]
+  // naive algorithm finds 2 addl. spurious trees:
+  //  (S (S x) (S x))                     -> [x][x]
+  //  (S (S (S x) (S x)) (S (S x) (S x))) -> [xx][xx]
 
-//   let forest: Forest = crate::earley::parse_chart(&g, &["x", "x", "x", "x"]).into();
-//   let trees = forest.trees(&g);
+  let g = r#"
+      S -> x;
+      S -> S S;
+    "#
+  .parse()
+  .unwrap();
 
-//   for tree in trees.iter() {
-//     println!("{}\n", tree);
-//   }
+  let forest: Forest = crate::earley::parse_chart(&g, &["x", "x", "x"]).into();
+  let trees = forest.trees(&g);
 
-//   assert_eq!(trees.len(), 5);
-// }
+  for tree in trees.iter() {
+    println!("{}\n", tree);
+  }
+
+  assert_eq!(trees.len(), 2);
+}
