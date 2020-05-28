@@ -9,14 +9,32 @@ use crate::Err;
 
 pub const TOP_STR: &str = "**top**";
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParsedFeatureValue {
+  Top,
+  Str(String),
+}
+
+// use instead of FromStr because it can't fail
+impl From<&str> for ParsedFeatureValue {
+  /// Returns Top if s == TOP_STR, else allocates a String for Str
+  fn from(s: &str) -> Self {
+    if s == TOP_STR {
+      Self::Top
+    } else {
+      Self::Str(s.to_string())
+    }
+  }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedFeature {
   pub dotted: String,
   pub tag: Option<String>,
-  pub value: String,
+  pub value: ParsedFeatureValue,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 // We can't know whether this is a symbol or terminal before parsing all
 // the rules and learning all the left-hand symbols
 pub struct ParsedSymbolOrTerminal {
@@ -24,7 +42,7 @@ pub struct ParsedSymbolOrTerminal {
   pub features: Vec<ParsedFeature>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ParsedRule {
   pub symbol: ParsedSymbolOrTerminal,
   pub productions: Vec<ParsedSymbolOrTerminal>,
@@ -133,19 +151,18 @@ fn parse_tag(s: &str) -> ParseResult<Option<String>> {
 }
 
 /// Parses a value with an optional tag: #tag value
-fn parse_feature_value(s: &str) -> ParseResult<(Option<String>, String)> {
+fn parse_feature_value(s: &str) -> ParseResult<(Option<String>, ParsedFeatureValue)> {
   regex_static!(VALUE, r"[a-zA-Z0-9\-_\*]+");
   let (tag, s) = parse_tag(s)?;
   let s = skip_whitespace(s);
   let (name, s) = optional_re(&*VALUE, s);
   let value = if let Some(name) = name {
-    name
+    ParsedFeatureValue::from(name)
   } else if tag.is_some() {
-    TOP_STR
+    ParsedFeatureValue::Top
   } else {
     return Err(format!("feature needs tag or value at {}", s).into());
-  }
-  .to_string();
+  };
   Ok(((tag, value), s))
 }
 
@@ -282,16 +299,8 @@ fn make_symbol(s: ParsedSymbolOrTerminal) -> Result<Symbol, Err> {
   let features = s
     .features
     .into_iter()
-    .map(|feature| {
-      let node: NodeRef = if feature.value == TOP_STR {
-        NodeRef::new_top()
-      } else {
-        NodeRef::new_str(feature.value)
-      };
-      (feature.dotted, node, feature.tag)
-    })
     .collect::<Vec<_>>();
-  let symbol = Symbol::new(s.name, NodeRef::new_from_paths(&features[..])?);
+  let symbol = Symbol::new(s.name, NodeRef::new_from_paths(features)?);
   Ok(symbol)
 }
 
