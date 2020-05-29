@@ -1,6 +1,5 @@
 /// Simple recursive-descent parsing of grammar files
 use regex::Regex;
-use std::collections::HashSet;
 
 use crate::featurestructure::NodeRef;
 use crate::rules::{Production, Rule, Symbol};
@@ -33,34 +32,10 @@ pub struct ParsedFeature {
   pub value: ParsedFeatureValue,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedSymbol {
-  name: String,
-  features: Vec<ParsedFeature>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ParsedProduction {
-  Symbol(ParsedSymbol),
-  Terminal(String),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ParsedRule {
-  pub symbol: ParsedSymbol,
-  pub productions: Vec<ParsedProduction>,
-}
-
 /// Parses a str into a tuple of (rules, nonterminals)
 /// Errors if the grammar doesn't parse or is malformed
-pub fn parse(s: &str) -> Result<(Vec<Rule>, HashSet<String>), Err> {
-  let rules = parse_rules(s)?;
-  let nonterminals: HashSet<String> = rules.iter().map(|r| r.symbol.name.to_string()).collect();
-  let rules: Vec<Rule> = rules
-    .into_iter()
-    .map(make_rule)
-    .collect::<Result<_, Err>>()?;
-  Ok((rules, nonterminals))
+pub fn parse(s: &str) -> Result<Vec<Rule>, Err> {
+  parse_rules(s).map(|(rules, _)| rules)
 }
 
 type Infallible<'a, T> = (T, &'a str);
@@ -202,7 +177,7 @@ fn parse_featurestructure(s: &str) -> ParseResult<Vec<ParsedFeature>> {
   }
 }
 
-fn parse_production(s: &str) -> ParseResult<ParsedProduction> {
+fn parse_production(s: &str) -> ParseResult<(Production, Vec<ParsedFeature>)> {
   let (name, s) = parse_name(s).map_err(|e| -> Err { format!("symbol: {}", e).into() })?;
   let s = skip_whitespace(s);
   let (features, s) = if s.starts_with('[') {
@@ -215,53 +190,66 @@ fn parse_production(s: &str) -> ParseResult<ParsedProduction> {
     if !features.is_empty() {
       Err(format!("terminal (lower-case) cannot have features: {} {}", name, s).into())
     } else {
-      Ok((ParsedProduction::Terminal(name.to_string()), s))
+      Ok(((Production::Terminal(name.to_string()), features), s))
     }
   } else {
     Ok((
-      ParsedProduction::Symbol(ParsedSymbol {
-        name: name.to_string(),
+      (
+        Production::Nonterminal(Symbol {
+          name: name.to_string(),
+        }),
         features,
-      }),
+      ),
       s,
     ))
   }
 }
 
-fn parse_symbol(s: &str) -> ParseResult<ParsedSymbol> {
+fn parse_symbol(s: &str) -> ParseResult<(Symbol, Vec<ParsedFeature>)> {
   let (prod, s) = parse_production(s)?;
   match prod {
-    ParsedProduction::Symbol(sym) => Ok((sym, s)),
-    _ => Err(format!("expected symbol, got terminal: {}", s).into()),
+    (Production::Nonterminal(symbol), features) => Ok(((symbol, features), s)),
+    (Production::Terminal(w), _) => {
+      Err(format!("expected symbol, got terminal {}: {}", w, s).into())
+    }
   }
 }
 
 /// Symbol, productions, terminated by final newline
-fn parse_rule(s: &str) -> ParseResult<ParsedRule> {
+fn parse_rule(s: &str) -> ParseResult<Rule> {
   #![allow(clippy::trivial_regex)]
   regex_static!(ARROW, "->");
 
-  let (symbol, s) = parse_symbol(s).map_err(|e| -> Err { format!("rule symbol: {}", e).into() })?;
+  let ((symbol, features), s) =
+    parse_symbol(s).map_err(|e| -> Err { format!("rule symbol: {}", e).into() })?;
   let s = skip_whitespace(s);
   let (_, s) = needed_re(&*ARROW, s).map_err(|e| -> Err { format!("rule arrow: {}", e).into() })?;
-  let mut productions = Vec::new();
+
+  let mut prods_features = Vec::new();
   let mut rem = s;
   loop {
     rem = skip_whitespace(rem);
     if let (Some(_), s) = optional_char(';', rem) {
-      return Ok((
-        ParsedRule {
-          symbol,
-          productions,
-        },
-        s,
-      ));
+      rem = s;
+      break;
     }
     let (prod, s) =
       parse_production(rem).map_err(|e| -> Err { format!("rule production: {}", e).into() })?;
-    productions.push(prod);
+    prods_features.push(prod);
     rem = s;
   }
+
+  let (features, productions) = adopt_child_features(features, prods_features);
+  let features = NodeRef::new_from_paths(features)?;
+
+  Ok((
+    Rule {
+      symbol,
+      features,
+      productions,
+    },
+    rem,
+  ))
 }
 
 /// We want rules to be able to access their child features, and to be able to
@@ -271,68 +259,37 @@ fn parse_rule(s: &str) -> ParseResult<ParsedRule> {
 ///
 /// We could try to implement this when constructing the rule, but it's easier
 /// to do as a simple AST transform.
-fn adopt_child_features(r: ParsedRule) -> ParsedRule {
-  let mut symbol_features = r.symbol.features;
+fn adopt_child_features(
+  mut rule_features: Vec<ParsedFeature>,
+  prods_features: Vec<(Production, Vec<ParsedFeature>)>,
+) -> (Vec<ParsedFeature>, Vec<Production>) {
+  let mut productions = Vec::with_capacity(prods_features.len());
 
-  for (idx, prod) in r.productions.iter().enumerate() {
-    if let ParsedProduction::Symbol(sym) = prod {
-      for feature in sym.features.iter() {
-        let name = format!("child-{}.", idx) + &feature.dotted;
-        symbol_features.push(ParsedFeature {
-          dotted: name,
-          tag: feature.tag.clone(),
-          value: feature.value.clone(),
-        });
-      }
+  for (idx, (prod, features)) in prods_features.into_iter().enumerate() {
+    productions.push(prod);
+    let prefix = format!("child-{}.", idx);
+    for feature in features.into_iter() {
+      rule_features.push(ParsedFeature {
+        dotted: prefix.clone() + &feature.dotted,
+        tag: feature.tag,
+        value: feature.value,
+      });
     }
   }
 
-  ParsedRule {
-    symbol: ParsedSymbol {
-      name: r.symbol.name,
-      features: symbol_features,
-    },
-    productions: r.productions,
-  }
+  (rule_features, productions)
 }
 
-fn parse_rules(s: &str) -> Result<Vec<ParsedRule>, Err> {
+fn parse_rules(s: &str) -> ParseResult<Vec<Rule>> {
   let mut rules = Vec::new();
   let mut rem = s;
   loop {
     rem = skip_whitespace(rem);
     if rem.is_empty() {
-      return Ok(rules);
+      return Ok((rules, s));
     }
     let (rule, s) = parse_rule(rem)?;
-    let rule = adopt_child_features(rule);
     rules.push(rule);
     rem = s;
   }
-}
-
-fn make_symbol(s: ParsedSymbol) -> Result<Symbol, Err> {
-  let features = s.features.into_iter().collect::<Vec<_>>();
-  let symbol = Symbol::new(s.name, NodeRef::new_from_paths(features)?);
-  Ok(symbol)
-}
-
-fn make_production(s: ParsedProduction) -> Result<Production, Err> {
-  match s {
-    ParsedProduction::Symbol(sym) => Ok(Production::Nonterminal(make_symbol(sym)?)),
-    ParsedProduction::Terminal(w) => Ok(Production::Terminal(w)),
-  }
-}
-
-fn make_rule(r: ParsedRule) -> Result<Rule, Err> {
-  let productions: Vec<Production> = r
-    .productions
-    .into_iter()
-    .map(make_production)
-    .collect::<Result<_, Err>>()?;
-  let symbol = make_symbol(r.symbol)?;
-  Ok(Rule {
-    symbol,
-    productions,
-  })
 }

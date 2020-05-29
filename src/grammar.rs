@@ -99,10 +99,12 @@ impl FromStr for Grammar {
   /// Parses a grammar from a string. Assumes the first rule's symbol
   /// is the start symbol.
   fn from_str(s: &str) -> Result<Self, Self::Err> {
-    let (rules, nonterminals) = parse(s)?;
+    let rules = parse(s)?;
     if rules.is_empty() {
       return Err("empty ruleset".into());
     }
+
+    let nonterminals: HashSet<String> = rules.iter().map(|r| r.symbol.name.clone()).collect();
 
     let start = rules[0].symbol.name.clone();
 

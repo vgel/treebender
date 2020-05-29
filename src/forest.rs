@@ -288,7 +288,7 @@ pub fn unify_tree(tree: SynTree<Rc<Rule>, String>) -> Result<NodeRef, Err> {
       NodeRef::new_with_edges(vec![("word".to_string(), NodeRef::new_str(w.to_string()))])
     }
     SynTree::Branch(cons, children) => {
-      let features = cons.value.symbol.features.deep_clone();
+      let features = cons.value.features.deep_clone();
 
       for (idx, child) in children.into_iter().enumerate() {
         let child = unify_tree(child)?;

@@ -2,25 +2,24 @@ use std::fmt;
 
 use crate::featurestructure::NodeRef;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Symbol {
   pub name: String,
-  pub features: NodeRef,
 }
 
 impl Symbol {
-  pub fn new(name: String, features: NodeRef) -> Self {
-    Self { name, features }
+  pub fn new(name: String) -> Self {
+    Self { name }
   }
 }
 
 impl fmt::Display for Symbol {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}{}", self.name, self.features)
+    write!(f, "{}", self.name)
   }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Production {
   Terminal(String),
   Nonterminal(Symbol),
@@ -61,6 +60,7 @@ impl fmt::Display for Production {
 #[derive(Debug, PartialEq)]
 pub struct Rule {
   pub symbol: Symbol,
+  pub features: NodeRef,
   pub productions: Vec<Production>,
 }
 
@@ -80,7 +80,7 @@ impl Rule {
 
 impl std::fmt::Display for Rule {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{} ->", self.symbol)?;
+    write!(f, "{}{} ->", self.symbol, self.features)?;
     for p in self.productions.iter() {
       write!(f, " {}", p)?;
     }
