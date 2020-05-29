@@ -11,7 +11,7 @@ pub mod syntree;
 use std::rc::Rc;
 
 use crate::earley::{parse_chart, Chart};
-use crate::featurestructure::{Node, NodeRef};
+use crate::featurestructure::NodeRef;
 use crate::forest::Forest;
 use crate::rules::{Grammar, Rule};
 use crate::syntree::SynTree;
@@ -36,7 +36,7 @@ impl Grammar {
         for (idx, child) in children.into_iter().enumerate() {
           let child = Self::unify_tree(child)?;
           let to_unify = NodeRef::new_with_edges(vec![(format!("child-{}", idx), child)])?;
-          Node::unify(features.clone(), to_unify)?;
+          NodeRef::unify(features.clone(), to_unify)?;
         }
 
         Ok(features)

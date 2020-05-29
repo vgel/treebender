@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::fmt;
@@ -19,28 +17,31 @@ pub struct Feature {
   pub value: NodeRef,
 }
 
+/// A raw node. Shouldn't be used, should always be wrapped in a NodeRef.
 #[derive(Debug)]
-pub enum Node {
+enum Node {
+  /// Top can unify with anything
   Top,
+  /// A string-valued feature, such as "nom" in [case: nom]. Unifies with eq. Str nodes
   Str(String),
+  /// An arc-containing node with arcs to other NodeRefs
   Edged(HashMap<String, NodeRef>),
+  /// A node that has been forwarded to another node through unification.
+  /// Before using a node, it should be dereferenced with Node::dereference to resolve its forward
   Forwarded(NodeRef),
 }
 
+/// An interior-ly mutable ref to a Node.
 #[derive(Debug)]
 pub struct NodeRef(Rc<RefCell<Node>>);
 
 impl NodeRef {
-  fn new(n: Node) -> Self {
-    Self(Rc::new(RefCell::new(n)))
-  }
-
   pub fn new_top() -> Self {
-    Self::new(Node::Top)
+    Node::Top.into()
   }
 
   pub fn new_str(s: String) -> Self {
-    Self::new(Node::new_str(s))
+    Node::new_str(s).into()
   }
 
   /// Creates a NodeRef from a list of (name, noderef) features. Names CANNOT be dotted!
@@ -57,7 +58,7 @@ impl NodeRef {
 
       n.push_edge(label, target)?;
     }
-    Ok(Self::from(n))
+    Ok(n.into())
   }
 
   // List of (name, value, tag) triples
@@ -72,7 +73,7 @@ impl NodeRef {
       if let Some(tag) = tag {
         if tags.contains_key(&tag) {
           let tagged = tags.get(&tag).unwrap();
-          Node::unify(value.clone(), tagged.clone())?;
+          NodeRef::unify(value.clone(), tagged.clone())?;
         } else {
           tags.insert(tag.to_string(), value.clone());
         }
@@ -102,156 +103,23 @@ impl NodeRef {
     Ok(this)
   }
 
-  pub fn borrow(&self) -> Ref<Node> {
-    self.0.borrow()
-  }
-
-  pub fn borrow_mut(&self) -> RefMut<Node> {
-    self.0.borrow_mut()
-  }
-
-  pub fn replace(&self, n: Node) -> Node {
-    self.0.replace(n)
-  }
-
-  fn _deep_clone(&self, seen: &mut HashMap<NodeRef, NodeRef>) -> NodeRef {
-    if seen.contains_key(self) {
-      return seen.get(self).unwrap().clone();
-    }
-
-    let n = self.borrow();
-    let cloned = match &*n {
-      Node::Forwarded(n1) => {
-        let n1 = n1._deep_clone(seen);
-        Self::new(Node::Forwarded(n1))
-      }
-      Node::Top => Self::new_top(),
-      Node::Str(s) => Self::new_str(s.to_string()),
-      Node::Edged(edges) => Self::new(Node::Edged(
-        edges
-          .iter()
-          .map(|(k, v)| (k.clone(), v._deep_clone(seen)))
-          .collect(),
-      )),
-    };
-    seen.insert(self.clone(), cloned.clone());
-    cloned
-  }
-
   pub fn deep_clone(&self) -> NodeRef {
     let mut map = HashMap::new();
     self._deep_clone(&mut map);
     map.get(self).unwrap().clone()
   }
-}
 
-impl Clone for NodeRef {
-  /// Clones the ***rc*** of this NodeRef. Use deep_clone to clone the actual feature structure.
-  fn clone(&self) -> Self {
-    Self(self.0.clone())
-  }
-}
-
-// pointer equality
-impl PartialEq for NodeRef {
-  fn eq(&self, other: &Self) -> bool {
-    Rc::ptr_eq(&self.0, &other.0)
-  }
-}
-
-impl Eq for NodeRef {}
-
-impl Hash for NodeRef {
-  fn hash<H: Hasher>(&self, hasher: &mut H) {
-    self.0.as_ptr().hash(hasher)
-  }
-}
-
-impl From<Node> for NodeRef {
-  fn from(node: Node) -> Self {
-    Self::new(node)
-  }
-}
-
-impl Node {
-  fn new_top() -> Self {
-    Self::Top
-  }
-
-  fn new_str(s: String) -> Self {
-    Self::Str(s)
-  }
-
-  fn new_edged() -> Self {
-    Self::Edged(HashMap::new())
-  }
-
-  pub fn dereference(self_: NodeRef) -> NodeRef {
-    if let Node::Forwarded(r) = &*self_.borrow() {
+  pub fn dereference(self: NodeRef) -> NodeRef {
+    if let Node::Forwarded(r) = &*self.borrow() {
       return Self::dereference(r.clone());
     }
-    self_
+    self
   }
 
-  fn is_top(&self) -> bool {
-    match self {
-      Self::Top => true,
-      _ => false,
-    }
-  }
-
-  fn str(&self) -> Option<&str> {
-    match self {
-      Self::Str(s) => Some(s),
-      _ => None,
-    }
-  }
-
-  fn is_str(&self) -> bool {
-    self.str().is_some()
-  }
-
-  pub fn edged(&self) -> Option<&HashMap<String, NodeRef>> {
-    match self {
-      Self::Edged(v) => Some(v),
-      _ => None,
-    }
-  }
-
-  fn edged_mut(&mut self) -> Option<&mut HashMap<String, NodeRef>> {
-    match self {
-      Self::Edged(v) => Some(v),
-      _ => None,
-    }
-  }
-
-  fn is_edged(&self) -> bool {
-    self.edged().is_some()
-  }
-
-  #[allow(clippy::map_entry)]
-  fn push_edge(&mut self, label: String, target: NodeRef) -> Result<(), Err> {
-    if self.is_top() {
-      *self = Self::new_edged();
-    }
-
-    if let Some(arcs) = self.edged_mut() {
-      if arcs.contains_key(&label) {
-        let existing = arcs[&label].clone();
-        Self::unify(existing, target)
-      } else {
-        arcs.insert(label, target);
-        Ok(())
-      }
-    } else {
-      Err(format!("unification failure: {}", label).into())
-    }
-  }
-
-  /// destroys both n1 and n2
+  /// Unify two feature structures. Both will be mutated. Use deep_clone() if one needs to be preserved.
   pub fn unify(n1: NodeRef, n2: NodeRef) -> Result<(), Err> {
-    let n1 = Node::dereference(n1);
-    let n2 = Node::dereference(n2);
+    let n1 = n1.dereference();
+    let n2 = n2.dereference();
 
     // quick check reference equality if the og nodes were forwarded to each other
     if n1 == n2 {
@@ -314,8 +182,145 @@ impl Node {
   }
 }
 
+impl NodeRef {
+  fn new(n: Node) -> Self {
+    Self(Rc::new(RefCell::new(n)))
+  }
+
+  fn borrow(&self) -> Ref<Node> {
+    self.0.borrow()
+  }
+
+  fn borrow_mut(&self) -> RefMut<Node> {
+    self.0.borrow_mut()
+  }
+
+  fn replace(&self, n: Node) -> Node {
+    self.0.replace(n)
+  }
+
+  fn _deep_clone(&self, seen: &mut HashMap<NodeRef, NodeRef>) -> NodeRef {
+    if seen.contains_key(self) {
+      return seen.get(self).unwrap().clone();
+    }
+
+    let n = self.borrow();
+    let cloned = match &*n {
+      Node::Forwarded(n1) => {
+        let n1 = n1._deep_clone(seen);
+        Self::new(Node::Forwarded(n1))
+      }
+      Node::Top => Self::new_top(),
+      Node::Str(s) => Self::new_str(s.to_string()),
+      Node::Edged(edges) => Self::new(Node::Edged(
+        edges
+          .iter()
+          .map(|(k, v)| (k.clone(), v._deep_clone(seen)))
+          .collect(),
+      )),
+    };
+    seen.insert(self.clone(), cloned.clone());
+    cloned
+  }
+}
+
+impl Clone for NodeRef {
+  /// Clones the ***rc*** of this NodeRef. Use deep_clone to clone the actual feature structure.
+  fn clone(&self) -> Self {
+    Self(self.0.clone())
+  }
+}
+
+impl PartialEq for NodeRef {
+  /// Compares NodeRefs via pointer equality. Does not dereference forwarding chains.
+  fn eq(&self, other: &Self) -> bool {
+    Rc::ptr_eq(&self.0, &other.0)
+  }
+}
+
+impl Eq for NodeRef {}
+
+impl Hash for NodeRef {
+  /// Hashes NodeRefs via pointer equality. Does not dereference forwarding chains.
+  fn hash<H: Hasher>(&self, hasher: &mut H) {
+    self.0.as_ptr().hash(hasher)
+  }
+}
+
+impl From<Node> for NodeRef {
+  fn from(node: Node) -> Self {
+    Self::new(node)
+  }
+}
+
+impl Node {
+  fn new_str(s: String) -> Self {
+    Self::Str(s)
+  }
+
+  fn new_edged() -> Self {
+    Self::Edged(HashMap::new())
+  }
+
+  fn is_top(&self) -> bool {
+    match self {
+      Self::Top => true,
+      _ => false,
+    }
+  }
+
+  fn str(&self) -> Option<&str> {
+    match self {
+      Self::Str(s) => Some(s),
+      _ => None,
+    }
+  }
+
+  fn is_str(&self) -> bool {
+    self.str().is_some()
+  }
+
+  fn edged(&self) -> Option<&HashMap<String, NodeRef>> {
+    match self {
+      Self::Edged(v) => Some(v),
+      _ => None,
+    }
+  }
+
+  fn edged_mut(&mut self) -> Option<&mut HashMap<String, NodeRef>> {
+    match self {
+      Self::Edged(v) => Some(v),
+      _ => None,
+    }
+  }
+
+  fn is_edged(&self) -> bool {
+    self.edged().is_some()
+  }
+
+  #[allow(clippy::map_entry)]
+  fn push_edge(&mut self, label: String, target: NodeRef) -> Result<(), Err> {
+    if self.is_top() {
+      *self = Self::new_edged();
+    }
+
+    if let Some(arcs) = self.edged_mut() {
+      if arcs.contains_key(&label) {
+        let existing = arcs[&label].clone();
+        NodeRef::unify(existing, target)
+      } else {
+        arcs.insert(label, target);
+        Ok(())
+      }
+    } else {
+      Err(format!("unification failure: {}", label).into())
+    }
+  }
+}
+
+// for fmt::Display impl
 fn count_in_pointers(nref: NodeRef, seen: &mut HashMap<NodeRef, usize>) {
-  let nref = Node::dereference(nref);
+  let nref = nref.dereference();
   if seen.contains_key(&nref) {
     seen.entry(nref).and_modify(|cnt| *cnt += 1);
   } else {
@@ -328,14 +333,15 @@ fn count_in_pointers(nref: NodeRef, seen: &mut HashMap<NodeRef, usize>) {
   }
 }
 
-fn _fmt_noderef(
+// for fmt::Display impl
+fn format_noderef(
   self_: NodeRef,
   counts: &HashMap<NodeRef, usize>,
   has_printed: &mut HashMap<NodeRef, usize>,
   indent: usize,
   f: &mut fmt::Formatter<'_>,
 ) -> fmt::Result {
-  let self_ = Node::dereference(self_);
+  let self_ = self_.dereference();
 
   if counts[&self_] > 1 && has_printed.contains_key(&self_) {
     return write!(f, "#{}", has_printed[&self_]);
@@ -357,13 +363,13 @@ fn _fmt_noderef(
       } else if arcs.len() == 1 {
         let (label, value) = arcs.iter().next().unwrap();
         write!(f, "[ {}: ", label)?;
-        _fmt_noderef(value.clone(), counts, has_printed, 0, f)?;
+        format_noderef(value.clone(), counts, has_printed, 0, f)?;
         write!(f, " ]")
       } else {
         writeln!(f, "[")?;
         for (label, value) in arcs.iter() {
           write!(f, "{:indent$}{}: ", "", label, indent = indent + 2)?;
-          _fmt_noderef(value.clone(), counts, has_printed, indent + 2, f)?;
+          format_noderef(value.clone(), counts, has_printed, indent + 2, f)?;
           writeln!(f)?;
         }
         write!(f, "{:indent$}]", "", indent = indent)
@@ -378,7 +384,7 @@ impl fmt::Display for NodeRef {
     let mut counts = HashMap::new();
     count_in_pointers(self.clone(), &mut counts);
     let mut has_printed = HashMap::new();
-    _fmt_noderef(self.clone(), &counts, &mut has_printed, 0, f)
+    format_noderef(self.clone(), &counts, &mut has_printed, 0, f)
   }
 }
 
@@ -434,7 +440,7 @@ fn test_unify_tags() {
   }])
   .unwrap();
 
-  Node::unify(fs1.clone(), fs2).unwrap();
+  NodeRef::unify(fs1.clone(), fs2).unwrap();
 
   println!("{}", fs1);
 }
