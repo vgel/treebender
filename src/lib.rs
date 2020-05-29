@@ -15,7 +15,7 @@ use crate::earley::{parse_chart, Chart};
 use crate::featurestructure::NodeRef;
 use crate::forest::Forest;
 use crate::rules::{Grammar, Rule};
-use crate::syntree::SynTree;
+use crate::syntree::{Constituent, SynTree};
 pub use crate::utils::Err;
 
 impl Grammar {
@@ -27,24 +27,37 @@ impl Grammar {
     Forest::from(self.parse_chart(input))
   }
 
-  pub fn unify_tree(tree: SynTree<Rc<Rule>, String>) -> Result<NodeRef, Err> {
+  pub fn unify_tree(
+    tree: SynTree<Rc<Rule>, String>,
+  ) -> Result<(SynTree<String, String>, NodeRef), Err> {
     match tree {
-      SynTree::Leaf(_) => Ok(NodeRef::new_top()),
+      SynTree::Leaf(w) => Ok((SynTree::Leaf(w), NodeRef::new_top())),
       SynTree::Branch(cons, children) => {
         let features = cons.value.features.deep_clone();
 
+        let mut bare_children = Vec::with_capacity(children.len());
         for (idx, child) in children.into_iter().enumerate() {
-          let child = Self::unify_tree(child)?;
-          let to_unify = NodeRef::new_with_edges(vec![(format!("child-{}", idx), child)])?;
+          let (child_tree, child_features) = Self::unify_tree(child)?;
+          bare_children.push(child_tree);
+
+          let to_unify = NodeRef::new_with_edges(vec![(format!("child-{}", idx), child_features)])?;
           NodeRef::unify(features.clone(), to_unify)?;
         }
 
-        Ok(features)
+        let bare_self = SynTree::Branch(
+          Constituent {
+            span: cons.span,
+            value: cons.value.symbol.name.clone(),
+          },
+          bare_children,
+        );
+
+        Ok((bare_self, features))
       }
     }
   }
 
-  pub fn parse(&self, input: &[&str]) -> Vec<NodeRef> {
+  pub fn parse(&self, input: &[&str]) -> Vec<(SynTree<String, String>, NodeRef)> {
     let forest = self.parse_forest(input);
     let trees = forest.trees(&self);
     trees

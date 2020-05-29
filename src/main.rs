@@ -58,8 +58,11 @@ fn main() -> Result<(), Err> {
     trees.len(),
     if trees.len() == 1 { "" } else { "s" }
   );
-  for t in trees {
+
+  for (t, fs) in trees {
     println!("{}", t);
+    println!("{}", fs);
+    println!();
   }
 
   Ok(())
