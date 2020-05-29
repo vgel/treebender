@@ -282,11 +282,8 @@ impl fmt::Display for Forest {
 }
 
 pub fn unify_tree(tree: SynTree<Rc<Rule>, String>) -> Result<NodeRef, Err> {
-  // TODO: as an AST transform-like thing, this is probably better in parse_grammar
   match tree {
-    SynTree::Leaf(w) => {
-      NodeRef::new_with_edges(vec![("word".to_string(), NodeRef::new_str(w.to_string()))])
-    }
+    SynTree::Leaf(_) => Ok(NodeRef::new_top()),
     SynTree::Branch(cons, children) => {
       let features = cons.value.features.deep_clone();
 

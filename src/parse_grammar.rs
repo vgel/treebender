@@ -190,7 +190,18 @@ fn parse_production(s: &str) -> ParseResult<(Production, Vec<ParsedFeature>)> {
     if !features.is_empty() {
       Err(format!("terminal (lower-case) cannot have features: {} {}", name, s).into())
     } else {
-      Ok(((Production::Terminal(name.to_string()), features), s))
+      // annotate terminals with their matching string
+      Ok((
+        (
+          Production::Terminal(name.to_string()),
+          vec![ParsedFeature {
+            dotted: "word".to_string(),
+            tag: None,
+            value: ParsedFeatureValue::Str(name.to_string()),
+          }],
+        ),
+        s,
+      ))
     }
   } else {
     Ok((
