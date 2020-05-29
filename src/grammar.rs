@@ -125,3 +125,51 @@ impl FromStr for Grammar {
     })
   }
 }
+
+#[test]
+fn test_parse_grammar() {
+  let g: Grammar = r#"
+       S -> N[ case: nom, num: #1 ] IV[ num: #1 ];
+       S -> N[ case: nom, pron: #1, num: #2 ] TV[ num: #2 ] N[ case: acc, needs_pron: #1 ];
+       S -> N[ case: nom, num: #1 ] CV[ num: #num ] Comp S;
+
+       N[ num: sg, pron: she ]     -> Mary;
+       IV[ num: top, tense: past ] -> fell;
+       TV[ num: top, tense: past ] -> kissed;
+       CV[ num: top, tense: past ] -> said;
+       Comp -> that;
+     "#
+  .parse()
+  .unwrap();
+
+  let nonterminals: HashSet<String> = ["S", "N", "IV", "TV", "CV", "Comp"]
+    .iter()
+    .map(|&s| s.to_string())
+    .collect();
+  assert_eq!(nonterminals, g.nonterminals);
+  assert_eq!(g.rules.len(), 6);
+
+  assert_eq!(g.rules.get("S").unwrap().len(), 3);
+  assert_eq!(g.rules.get("N").unwrap().len(), 1);
+  assert_eq!(g.rules.get("IV").unwrap().len(), 1);
+  assert_eq!(g.rules.get("TV").unwrap().len(), 1);
+  assert_eq!(g.rules.get("CV").unwrap().len(), 1);
+  assert_eq!(g.rules.get("Comp").unwrap().len(), 1);
+  assert!(g.rules.get("that").is_none());
+  assert!(g.rules.get("Mary").is_none());
+}
+
+#[test]
+fn test_find_nullables() {
+  let g: Grammar = r#"
+      S -> A B;
+      A -> c;
+      B -> D D;
+      D ->;
+    "#
+  .parse()
+  .unwrap();
+
+  let nl: HashSet<String> = ["B", "D"].iter().map(|&s| s.to_string()).collect();
+  assert_eq!(g.nullables, nl);
+}
