@@ -4,7 +4,7 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-use crate::Err;
+use crate::utils::Err;
 
 /// Unpacked representation of a feature, that NodeRef::new_from_paths can turn into a Node
 #[derive(Debug)]

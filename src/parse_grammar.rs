@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use crate::featurestructure::{Feature, NodeRef};
 use crate::rules::{Grammar, Production, Rule, Symbol};
-use crate::Err;
+use crate::utils::Err;
 
 pub const TOP_STR: &str = "**top**";
 

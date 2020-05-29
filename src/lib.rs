@@ -7,6 +7,7 @@ pub mod forest;
 pub mod parse_grammar;
 pub mod rules;
 pub mod syntree;
+pub mod utils;
 
 use std::rc::Rc;
 
@@ -15,8 +16,7 @@ use crate::featurestructure::NodeRef;
 use crate::forest::Forest;
 use crate::rules::{Grammar, Rule};
 use crate::syntree::SynTree;
-
-pub type Err = Box<dyn std::error::Error + 'static>;
+pub use crate::utils::Err;
 
 impl Grammar {
   fn parse_chart(&self, input: &[&str]) -> Chart {

@@ -4,53 +4,7 @@ use std::rc::Rc;
 use crate::earley::Chart;
 use crate::rules::{Grammar, Rule};
 use crate::syntree::{Constituent, SynTree, Word};
-
-/// Takes a list where each element is a set of choices, and returns all the possible sets
-/// generated. Will clone the elements.
-///
-/// ```ignore
-/// let v = vec![
-///   vec![1],
-///   vec![2, 3],
-///   vec![4],
-///   vec![5, 6, 7],
-/// ];
-///
-/// assert_eq!(combinations(v), vec![
-///   vec![1, 2, 4, 5],
-///   vec![1, 3, 4, 5],
-///   vec![1, 2, 4, 6],
-///   vec![1, 3, 4, 6],
-///   vec![1, 2, 4, 7],
-///   vec![1, 3, 4, 7],
-/// ]);
-/// ```
-fn combinations<T>(list: &[Vec<T>]) -> Vec<Vec<T>>
-where
-  T: Clone,
-{
-  if list.is_empty() {
-    Vec::new()
-  } else if list.len() == 1 {
-    list[0].iter().map(|e| vec![e.clone()]).collect()
-  } else {
-    let (head, tail) = list.split_at(1);
-    let head = &head[0];
-
-    combinations(tail)
-      .into_iter()
-      .map(|subseq| {
-        // prepend every element of the head to every possible subseq
-        head.iter().map(move |v| {
-          let mut newseq = subseq.clone();
-          newseq.insert(0, v.clone());
-          newseq
-        })
-      })
-      .flatten()
-      .collect()
-  }
-}
+use crate::utils::combinations;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ForestState {
