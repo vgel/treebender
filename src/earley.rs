@@ -1,8 +1,7 @@
 use std::fmt;
 use std::rc::Rc;
 
-use crate::grammar::Grammar;
-use crate::rules::{Production, Rule};
+use crate::rules::{Grammar, Production, Rule};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LR0 {

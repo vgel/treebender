@@ -2,12 +2,8 @@ use std::fmt;
 use std::rc::Rc;
 
 use crate::earley::Chart;
-use crate::featurestructure::{Node, NodeRef};
-// TODO: circular dependency
-use crate::grammar::Grammar;
-use crate::rules::Rule;
+use crate::rules::{Grammar, Rule};
 use crate::syntree::{Constituent, SynTree, Word};
-use crate::Err;
 
 /// Takes a list where each element is a set of choices, and returns all the possible sets
 /// generated. Will clone the elements.

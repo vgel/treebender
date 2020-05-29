@@ -9,7 +9,7 @@ pub mod parse_grammar;
 pub mod rules;
 pub mod syntree;
 
-use grammar::Grammar;
+use crate::rules::Grammar;
 
 pub type Err = Box<dyn std::error::Error + 'static>;
 
