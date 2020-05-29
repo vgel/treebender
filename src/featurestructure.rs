@@ -6,8 +6,18 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-use crate::parse_grammar::{ParsedFeature, ParsedFeatureValue};
 use crate::Err;
+
+/// Unpacked representation of a feature, that NodeRef::new_from_paths can turn into a Node
+#[derive(Debug)]
+pub struct Feature {
+  /// Dotted path where each segment will be a node: "a.b.c" -> [a: [b: [c: ...]]]
+  pub path: String,
+  /// Unique string that will link features into a reentrant node, or None
+  pub tag: Option<String>,
+  /// What will end up at `path`. Will be unified with any other feature values with the same tag.
+  pub value: NodeRef,
+}
 
 #[derive(Debug)]
 pub enum Node {
@@ -53,25 +63,23 @@ impl NodeRef {
   // List of (name, value, tag) triples
   pub fn new_from_paths<I>(paths: I) -> Result<NodeRef, Err>
   where
-    I: IntoIterator<Item = ParsedFeature>,
+    I: IntoIterator<Item = Feature>,
   {
     let this: NodeRef = Node::new_edged().into();
 
     let mut tags: HashMap<String, NodeRef> = HashMap::new();
-    for feature in paths {
-      let target = NodeRef::from(feature.value);
-
-      if let Some(tag) = feature.tag {
+    for Feature { value, tag, path } in paths {
+      if let Some(tag) = tag {
         if tags.contains_key(&tag) {
           let tagged = tags.get(&tag).unwrap();
-          Node::unify(target.clone(), tagged.clone())?;
+          Node::unify(value.clone(), tagged.clone())?;
         } else {
-          tags.insert(tag.to_string(), target.clone());
+          tags.insert(tag.to_string(), value.clone());
         }
       }
 
       let mut current = this.clone();
-      let mut parts = feature.dotted.split('.').peekable();
+      let mut parts = path.split('.').peekable();
       loop {
         let next = parts.next().expect("shouldn't be empty b/c path.len() > 0");
         let is_last = parts.peek().is_none();
@@ -79,7 +87,7 @@ impl NodeRef {
         if is_last {
           current
             .borrow_mut()
-            .push_edge(next.to_string(), target.clone())?;
+            .push_edge(next.to_string(), value.clone())?;
           break;
         } else {
           let new: NodeRef = Node::new_edged().into();
@@ -162,15 +170,6 @@ impl Hash for NodeRef {
 impl From<Node> for NodeRef {
   fn from(node: Node) -> Self {
     Self::new(node)
-  }
-}
-
-impl From<ParsedFeatureValue> for NodeRef {
-  fn from(v: ParsedFeatureValue) -> Self {
-    match v {
-      ParsedFeatureValue::Top => NodeRef::new_top(),
-      ParsedFeatureValue::Str(s) => NodeRef::new_str(s),
-    }
   }
 }
 
@@ -386,25 +385,25 @@ impl fmt::Display for NodeRef {
 #[test]
 fn test_construct_fs() {
   let root = NodeRef::new_from_paths(vec![
-    ParsedFeature {
-      dotted: "a.b".to_string(),
+    Feature {
+      path: "a.b".to_string(),
       tag: Some("1".to_string()),
-      value: ParsedFeatureValue::Top,
+      value: NodeRef::new_top(),
     },
-    ParsedFeature {
-      dotted: "a.b.c".to_string(),
+    Feature {
+      path: "a.b.c".to_string(),
       tag: None,
-      value: ParsedFeatureValue::Str("foo".to_string()),
+      value: NodeRef::new_str("foo".to_string()),
     },
-    ParsedFeature {
-      dotted: "a.b.d".to_string(),
+    Feature {
+      path: "a.b.d".to_string(),
       tag: None,
-      value: ParsedFeatureValue::Str("bar".to_string()),
+      value: NodeRef::new_str("bar".to_string()),
     },
-    ParsedFeature {
-      dotted: "e".to_string(),
+    Feature {
+      path: "e".to_string(),
       tag: Some("1".to_string()),
-      value: ParsedFeatureValue::Top,
+      value: NodeRef::new_top(),
     },
   ])
   .unwrap();
@@ -415,23 +414,23 @@ fn test_construct_fs() {
 #[test]
 fn test_unify_tags() {
   let fs1 = NodeRef::new_from_paths(vec![
-    ParsedFeature {
-      dotted: "a.b".to_string(),
+    Feature {
+      path: "a.b".to_string(),
       tag: Some("1".to_string()),
-      value: ParsedFeatureValue::Top,
+      value: NodeRef::new_top(),
     },
-    ParsedFeature {
-      dotted: "c".to_string(),
+    Feature {
+      path: "c".to_string(),
       tag: Some("1".to_string()),
-      value: ParsedFeatureValue::Top,
+      value: NodeRef::new_top(),
     },
   ])
   .unwrap();
 
-  let fs2 = NodeRef::new_from_paths(vec![ParsedFeature {
-    dotted: "c".to_string(),
+  let fs2 = NodeRef::new_from_paths(vec![Feature {
+    path: "c".to_string(),
     tag: None,
-    value: ParsedFeatureValue::Str("foo".to_string()),
+    value: NodeRef::new_str("foo".to_string()),
   }])
   .unwrap();
 

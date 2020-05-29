@@ -1,36 +1,11 @@
 /// Simple recursive-descent parsing of grammar files
 use regex::Regex;
 
-use crate::featurestructure::NodeRef;
+use crate::featurestructure::{Feature, NodeRef};
 use crate::rules::{Production, Rule, Symbol};
 use crate::Err;
 
 pub const TOP_STR: &str = "**top**";
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ParsedFeatureValue {
-  Top,
-  Str(String),
-}
-
-// use instead of FromStr because it can't fail
-impl From<&str> for ParsedFeatureValue {
-  /// Returns Top if s == TOP_STR, else allocates a String for Str
-  fn from(s: &str) -> Self {
-    if s == TOP_STR {
-      Self::Top
-    } else {
-      Self::Str(s.to_string())
-    }
-  }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedFeature {
-  pub dotted: String,
-  pub tag: Option<String>,
-  pub value: ParsedFeatureValue,
-}
 
 /// Parses a str into a tuple of (rules, nonterminals)
 /// Errors if the grammar doesn't parse or is malformed
@@ -129,22 +104,22 @@ fn parse_tag(s: &str) -> ParseResult<Option<String>> {
 }
 
 /// Parses a value with an optional tag: #tag value
-fn parse_feature_value(s: &str) -> ParseResult<(Option<String>, ParsedFeatureValue)> {
+fn parse_feature_value(s: &str) -> ParseResult<(Option<String>, NodeRef)> {
   regex_static!(VALUE, r"[a-zA-Z0-9\-_\*]+");
   let (tag, s) = parse_tag(s)?;
   let s = skip_whitespace(s);
   let (name, s) = optional_re(&*VALUE, s);
   let value = if let Some(name) = name {
-    ParsedFeatureValue::from(name)
+    NodeRef::new_str(name.to_string())
   } else if tag.is_some() {
-    ParsedFeatureValue::Top
+    NodeRef::new_top()
   } else {
     return Err(format!("feature needs tag or value at {}", s).into());
   };
   Ok(((tag, value), s))
 }
 
-fn parse_feature(s: &str) -> ParseResult<ParsedFeature> {
+fn parse_feature(s: &str) -> ParseResult<Feature> {
   let (name, s) = parse_dotted(s).map_err(|e| format!("feature name: {}", e))?;
   let s = skip_whitespace(s);
   let (_, s) = needed_char(':', s)?;
@@ -154,8 +129,8 @@ fn parse_feature(s: &str) -> ParseResult<ParsedFeature> {
   let (_, s) = optional_char(',', s);
 
   Ok((
-    ParsedFeature {
-      dotted: name.to_string(),
+    Feature {
+      path: name.to_string(),
       tag: value.0,
       value: value.1,
     },
@@ -163,7 +138,7 @@ fn parse_feature(s: &str) -> ParseResult<ParsedFeature> {
   ))
 }
 
-fn parse_featurestructure(s: &str) -> ParseResult<Vec<ParsedFeature>> {
+fn parse_featurestructure(s: &str) -> ParseResult<Vec<Feature>> {
   let mut pairs = Vec::new();
   let mut rem = needed_char('[', s)?.1;
   loop {
@@ -177,7 +152,7 @@ fn parse_featurestructure(s: &str) -> ParseResult<Vec<ParsedFeature>> {
   }
 }
 
-fn parse_production(s: &str) -> ParseResult<(Production, Vec<ParsedFeature>)> {
+fn parse_production(s: &str) -> ParseResult<(Production, Vec<Feature>)> {
   let (name, s) = parse_name(s).map_err(|e| -> Err { format!("symbol: {}", e).into() })?;
   let s = skip_whitespace(s);
   let (features, s) = if s.starts_with('[') {
@@ -194,10 +169,10 @@ fn parse_production(s: &str) -> ParseResult<(Production, Vec<ParsedFeature>)> {
       Ok((
         (
           Production::Terminal(name.to_string()),
-          vec![ParsedFeature {
-            dotted: "word".to_string(),
+          vec![Feature {
+            path: "word".to_string(),
             tag: None,
-            value: ParsedFeatureValue::Str(name.to_string()),
+            value: NodeRef::new_str(name.to_string()),
           }],
         ),
         s,
@@ -216,7 +191,7 @@ fn parse_production(s: &str) -> ParseResult<(Production, Vec<ParsedFeature>)> {
   }
 }
 
-fn parse_symbol(s: &str) -> ParseResult<(Symbol, Vec<ParsedFeature>)> {
+fn parse_symbol(s: &str) -> ParseResult<(Symbol, Vec<Feature>)> {
   let (prod, s) = parse_production(s)?;
   match prod {
     (Production::Nonterminal(symbol), features) => Ok(((symbol, features), s)),
@@ -271,17 +246,17 @@ fn parse_rule(s: &str) -> ParseResult<Rule> {
 /// We could try to implement this when constructing the rule, but it's easier
 /// to do as a simple AST transform.
 fn adopt_child_features(
-  mut rule_features: Vec<ParsedFeature>,
-  prods_features: Vec<(Production, Vec<ParsedFeature>)>,
-) -> (Vec<ParsedFeature>, Vec<Production>) {
+  mut rule_features: Vec<Feature>,
+  prods_features: Vec<(Production, Vec<Feature>)>,
+) -> (Vec<Feature>, Vec<Production>) {
   let mut productions = Vec::with_capacity(prods_features.len());
 
   for (idx, (prod, features)) in prods_features.into_iter().enumerate() {
     productions.push(prod);
     let prefix = format!("child-{}.", idx);
     for feature in features.into_iter() {
-      rule_features.push(ParsedFeature {
-        dotted: prefix.clone() + &feature.dotted,
+      rule_features.push(Feature {
+        path: prefix.clone() + &feature.path,
         tag: feature.tag,
         value: feature.value,
       });
