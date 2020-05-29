@@ -124,7 +124,11 @@ fn parse_feature_value(s: &str) -> ParseResult<(Option<String>, NodeRef)> {
   let s = skip_whitespace(s);
   let (name, s) = optional_re(&*VALUE, s);
   let value = if let Some(name) = name {
-    NodeRef::new_str(name.to_string())
+    if name == TOP_STR {
+      NodeRef::new_top()
+    } else {
+      NodeRef::new_str(name.to_string())
+    }
   } else if tag.is_some() {
     NodeRef::new_top()
   } else {
