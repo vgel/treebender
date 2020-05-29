@@ -8,8 +8,8 @@ use std::rc::Rc;
 use std::str::FromStr;
 
 use crate::earley::{parse_chart, Chart};
-use crate::featurestructure::NodeRef;
-use crate::forest::{unify_tree, Forest};
+use crate::featurestructure::{Node, NodeRef};
+use crate::forest::Forest;
 use crate::parse_grammar::parse;
 use crate::rules::{Production, Rule, Symbol};
 use crate::syntree::SynTree;
@@ -83,12 +83,29 @@ impl Grammar {
     Forest::from(self.parse_chart(input))
   }
 
+  pub fn unify_tree(tree: SynTree<Rc<Rule>, String>) -> Result<NodeRef, Err> {
+    match tree {
+      SynTree::Leaf(_) => Ok(NodeRef::new_top()),
+      SynTree::Branch(cons, children) => {
+        let features = cons.value.features.deep_clone();
+
+        for (idx, child) in children.into_iter().enumerate() {
+          let child = Self::unify_tree(child)?;
+          let to_unify = NodeRef::new_with_edges(vec![(format!("child-{}", idx), child)])?;
+          Node::unify(features.clone(), to_unify)?;
+        }
+
+        Ok(features)
+      }
+    }
+  }
+
   pub fn parse(&self, input: &[&str]) -> Vec<NodeRef> {
     let forest = self.parse_forest(input);
     let trees = forest.trees(&self);
     trees
       .into_iter()
-      .filter_map(|t| unify_tree(t).map(Some).unwrap_or(None))
+      .filter_map(|t| Self::unify_tree(t).map(Some).unwrap_or(None))
       .collect::<Vec<_>>()
   }
 }

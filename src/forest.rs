@@ -281,23 +281,6 @@ impl fmt::Display for Forest {
   }
 }
 
-pub fn unify_tree(tree: SynTree<Rc<Rule>, String>) -> Result<NodeRef, Err> {
-  match tree {
-    SynTree::Leaf(_) => Ok(NodeRef::new_top()),
-    SynTree::Branch(cons, children) => {
-      let features = cons.value.features.deep_clone();
-
-      for (idx, child) in children.into_iter().enumerate() {
-        let child = unify_tree(child)?;
-        let to_unify = NodeRef::new_with_edges(vec![(format!("child-{}", idx), child)])?;
-        Node::unify(features.clone(), to_unify)?;
-      }
-
-      Ok(features)
-    }
-  }
-}
-
 #[test]
 fn test_parse_chart() {
   let g: Grammar = r#"
