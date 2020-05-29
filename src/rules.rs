@@ -3,6 +3,7 @@ use std::fmt;
 use std::rc::Rc;
 
 use crate::featurestructure::NodeRef;
+use crate::utils::Err;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Symbol {
@@ -122,11 +123,21 @@ impl std::fmt::Display for Grammar {
 }
 
 impl Grammar {
-  pub fn new(rules: Vec<Rule>) -> Self {
+  pub fn new(rules: Vec<Rule>) -> Result<Self, Err> {
     assert!(!rules.is_empty());
 
     let nonterminals: HashSet<String> = rules.iter().map(|r| r.symbol.name.clone()).collect();
     let start = rules[0].symbol.name.clone();
+
+    for r in rules.iter() {
+      for p in r.productions.iter() {
+        if let Production::Nonterminal(sym) = p {
+          if !nonterminals.contains(&sym.name) {
+            return Err(format!("missing rules for nonterminal {}", sym.name).into());
+          }
+        }
+      }
+    }
 
     let rules: HashMap<String, Vec<Rc<Rule>>> =
       rules.into_iter().fold(HashMap::new(), |mut map, rule| {
@@ -139,12 +150,12 @@ impl Grammar {
 
     let nullables = Self::find_nullables(&rules);
 
-    Self {
+    Ok(Self {
       start,
       rules,
       nonterminals,
       nullables,
-    }
+    })
   }
 
   pub fn is_nullable(&self, s: &str) -> bool {

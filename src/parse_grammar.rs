@@ -22,7 +22,7 @@ impl FromStr for Grammar {
     if rules.is_empty() {
       Err("empty ruleset".into())
     } else {
-      Ok(Self::new(rules))
+      Self::new(rules)
     }
   }
 }
