@@ -1,17 +1,22 @@
-#![allow(unused)]
+#[macro_use]
+extern crate lazy_static;
 
-use regex::{Captures, Regex};
-use std::collections::{HashMap, HashSet};
-use std::fmt;
-use std::ops::RangeInclusive;
+pub mod earley;
+pub mod featurestructure;
+pub mod forest;
+pub mod parse_grammar;
+pub mod rules;
+pub mod syntree;
+
 use std::rc::Rc;
 
 use crate::earley::{parse_chart, Chart};
 use crate::featurestructure::{Node, NodeRef};
 use crate::forest::Forest;
-use crate::rules::{Grammar, Production, Rule, Symbol};
+use crate::rules::{Grammar, Rule};
 use crate::syntree::SynTree;
-use crate::Err;
+
+pub type Err = Box<dyn std::error::Error + 'static>;
 
 impl Grammar {
   fn parse_chart(&self, input: &[&str]) -> Chart {

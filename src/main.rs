@@ -1,17 +1,7 @@
-#[macro_use]
-extern crate lazy_static;
+extern crate earley_rust;
 
-pub mod earley;
-pub mod featurestructure;
-pub mod forest;
-pub mod grammar;
-pub mod parse_grammar;
-pub mod rules;
-pub mod syntree;
-
-use crate::rules::Grammar;
-
-pub type Err = Box<dyn std::error::Error + 'static>;
+use earley_rust::rules::Grammar;
+use earley_rust::Err;
 
 const GRAMMAR: &str = r#"
     // sentence rules
