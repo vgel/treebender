@@ -1,11 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::rc::Rc;
-use std::str::FromStr;
 
 use crate::featurestructure::NodeRef;
-use crate::parse_grammar::parse;
-use crate::Err;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Symbol {
@@ -125,6 +122,37 @@ impl std::fmt::Display for Grammar {
 }
 
 impl Grammar {
+  pub fn new(rules: Vec<Rule>) -> Self {
+    assert!(!rules.is_empty());
+
+    let nonterminals: HashSet<String> = rules.iter().map(|r| r.symbol.name.clone()).collect();
+    let start = rules[0].symbol.name.clone();
+
+    let rules: HashMap<String, Vec<Rc<Rule>>> =
+      rules.into_iter().fold(HashMap::new(), |mut map, rule| {
+        map
+          .entry(rule.symbol.name.clone())
+          .or_insert_with(Vec::new)
+          .push(Rc::new(rule));
+        map
+      });
+
+    let nullables = Self::find_nullables(&rules);
+
+    Self {
+      start,
+      rules,
+      nonterminals,
+      nullables,
+    }
+  }
+
+  pub fn is_nullable(&self, s: &str) -> bool {
+    self.nullables.contains(s)
+  }
+}
+
+impl Grammar {
   fn rule_is_nullable(nullables: &HashSet<String>, rule: &Rule) -> bool {
     rule.is_empty()
       || rule.productions.iter().all(|p| match p {
@@ -147,45 +175,6 @@ impl Grammar {
     }
 
     nullables
-  }
-
-  pub fn is_nullable(&self, s: &str) -> bool {
-    self.nullables.contains(s)
-  }
-}
-
-impl FromStr for Grammar {
-  type Err = Err;
-
-  /// Parses a grammar from a string. Assumes the first rule's symbol
-  /// is the start symbol.
-  fn from_str(s: &str) -> Result<Self, Self::Err> {
-    let rules = parse(s)?;
-    if rules.is_empty() {
-      return Err("empty ruleset".into());
-    }
-
-    let nonterminals: HashSet<String> = rules.iter().map(|r| r.symbol.name.clone()).collect();
-
-    let start = rules[0].symbol.name.clone();
-
-    let rules: HashMap<String, Vec<Rc<Rule>>> =
-      rules.into_iter().fold(HashMap::new(), |mut map, rule| {
-        map
-          .entry(rule.symbol.name.clone())
-          .or_insert_with(Vec::new)
-          .push(Rc::new(rule));
-        map
-      });
-
-    let nullables = Self::find_nullables(&rules);
-
-    Ok(Self {
-      start,
-      rules,
-      nonterminals,
-      nullables,
-    })
   }
 }
 

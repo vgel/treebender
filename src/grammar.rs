@@ -5,12 +5,10 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::ops::RangeInclusive;
 use std::rc::Rc;
-use std::str::FromStr;
 
 use crate::earley::{parse_chart, Chart};
 use crate::featurestructure::{Node, NodeRef};
 use crate::forest::Forest;
-use crate::parse_grammar::parse;
 use crate::rules::{Grammar, Production, Rule, Symbol};
 use crate::syntree::SynTree;
 use crate::Err;

@@ -1,16 +1,30 @@
-/// Simple recursive-descent parsing of grammar files
 use regex::Regex;
+/// Simple recursive-descent parsing of grammar files
+use std::str::FromStr;
 
 use crate::featurestructure::{Feature, NodeRef};
-use crate::rules::{Production, Rule, Symbol};
+use crate::rules::{Grammar, Production, Rule, Symbol};
 use crate::Err;
 
 pub const TOP_STR: &str = "**top**";
 
 /// Parses a str into a tuple of (rules, nonterminals)
 /// Errors if the grammar doesn't parse or is malformed
-pub fn parse(s: &str) -> Result<Vec<Rule>, Err> {
-  parse_rules(s).map(|(rules, _)| rules)
+impl FromStr for Grammar {
+  type Err = Err;
+
+  /// Parses a grammar from a string. Assumes the first rule's symbol
+  /// is the start symbol.
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    let (rules, s) = parse_rules(s)?;
+    assert!(s.is_empty());
+
+    if rules.is_empty() {
+      Err("empty ruleset".into())
+    } else {
+      Ok(Self::new(rules))
+    }
+  }
 }
 
 type Infallible<'a, T> = (T, &'a str);
@@ -272,7 +286,7 @@ fn parse_rules(s: &str) -> ParseResult<Vec<Rule>> {
   loop {
     rem = skip_whitespace(rem);
     if rem.is_empty() {
-      return Ok((rules, s));
+      return Ok((rules, rem));
     }
     let (rule, s) = parse_rule(rem)?;
     rules.push(rule);
