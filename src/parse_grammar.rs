@@ -3,7 +3,7 @@ use regex::Regex;
 use std::str::FromStr;
 
 use crate::featurestructure::{Feature, NodeRef};
-use crate::rules::{Grammar, Production, Rule, Symbol};
+use crate::rules::{Grammar, Production, Rule};
 use crate::utils::Err;
 
 pub const TOP_STR: &str = "**top**";
@@ -186,7 +186,7 @@ fn parse_production(s: &str) -> ParseResult<(Production, Vec<Feature>)> {
       // annotate terminals with their matching string
       Ok((
         (
-          Production::Terminal(name.to_string()),
+          Production::new_terminal(name.to_string()),
           vec![Feature {
             path: "word".to_string(),
             tag: None,
@@ -197,25 +197,16 @@ fn parse_production(s: &str) -> ParseResult<(Production, Vec<Feature>)> {
       ))
     }
   } else {
-    Ok((
-      (
-        Production::Nonterminal(Symbol {
-          name: name.to_string(),
-        }),
-        features,
-      ),
-      s,
-    ))
+    Ok(((Production::new_nonterminal(name.to_string()), features), s))
   }
 }
 
-fn parse_symbol(s: &str) -> ParseResult<(Symbol, Vec<Feature>)> {
-  let (prod, s) = parse_production(s)?;
-  match prod {
-    (Production::Nonterminal(symbol), features) => Ok(((symbol, features), s)),
-    (Production::Terminal(w), _) => {
-      Err(format!("expected symbol, got terminal {}: {}", w, s).into())
-    }
+fn parse_nonterminal(s: &str) -> ParseResult<(String, Vec<Feature>)> {
+  let ((prod, features), s) = parse_production(s)?;
+  if prod.is_nonterminal() {
+    Ok(((prod.symbol, features), s))
+  } else {
+    Err(format!("expected nonterminal, got terminal {}: {}", prod.symbol, s).into())
   }
 }
 
@@ -225,7 +216,7 @@ fn parse_rule(s: &str) -> ParseResult<Rule> {
   regex_static!(ARROW, "->");
 
   let ((symbol, features), s) =
-    parse_symbol(s).map_err(|e| -> Err { format!("rule symbol: {}", e).into() })?;
+    parse_nonterminal(s).map_err(|e| -> Err { format!("rule symbol: {}", e).into() })?;
   let s = skip_whitespace(s);
   let (_, s) = needed_re(&*ARROW, s).map_err(|e| -> Err { format!("rule arrow: {}", e).into() })?;
 

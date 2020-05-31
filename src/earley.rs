@@ -139,11 +139,15 @@ pub fn parse_chart(g: &Grammar, input: &[&str]) -> Chart {
       let state = chart.get_state(k, idx);
       idx += 1;
 
-      match state.lr0.next_production() {
-        None => completer(&mut chart, k, &state),
-        Some(Production::Nonterminal(_)) => predictor(g, &mut chart, k, &state),
-        Some(Production::Terminal(_)) => scanner(&mut chart, k, &state, input),
-      };
+      if let Some(production) = state.lr0.next_production() {
+        if production.is_nonterminal() {
+          predictor(g, &mut chart, k, &state);
+        } else {
+          scanner(&mut chart, k, &state, input);
+        }
+      } else {
+        completer(&mut chart, k, &state);
+      }
     }
   }
 
@@ -158,7 +162,7 @@ fn completer(chart: &mut Chart, k: usize, state: &State) {
     let other = chart.get_state(state.origin, idx);
 
     if let Some(np) = other.lr0.next_production() {
-      if np.symbol_str() == state.lr0.rule.symbol_str() {
+      if np.symbol == state.lr0.rule.symbol {
         // found one, advance its dot and add the new state to the chart *at k*,
         // because it's now waiting on a token there
         chart.add(k, other.advance())
@@ -177,7 +181,7 @@ fn predictor(g: &Grammar, chart: &mut Chart, k: usize, state: &State) {
   // this lr0 is waiting for the next production
   // let's hypothesize that one of the rules that can build this production will
   // succeed at its current position
-  let needed_symbol = state.lr0.next_production().unwrap().symbol_str();
+  let needed_symbol = &state.lr0.next_production().unwrap().symbol;
   for wanted_rule in g
     .rules
     .get(needed_symbol)
@@ -185,7 +189,7 @@ fn predictor(g: &Grammar, chart: &mut Chart, k: usize, state: &State) {
   {
     chart.add(k, State::new(LR0::new(wanted_rule), k));
 
-    if g.is_nullable(needed_symbol) {
+    if g.is_nullable(&needed_symbol) {
       // automatically complete `state` early, because we know
       // it will be completable anyways, because its next_production may be produced
       // by empty input. If we don't do this, nullable rules won't be completed
@@ -202,7 +206,7 @@ fn scanner(chart: &mut Chart, k: usize, state: &State, input: &[&str]) {
     "tried to scan a nonterminal"
   );
 
-  let needed_symbol = state.lr0.next_production().unwrap().symbol_str();
+  let needed_symbol = &state.lr0.next_production().unwrap().symbol;
   if k < input.len() && input[k] == needed_symbol {
     // advance the state to consume this token, and add to state k + 1, where
     // it will look for the next token

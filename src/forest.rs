@@ -107,12 +107,12 @@ impl Forest {
 
     let next_production = &rule.productions[prod_idx];
     if next_production.is_nonterminal() {
-      let wanted_symbol = next_production.symbol_str();
+      let wanted_symbol = &next_production.symbol;
       // look for potential next states to produce this production at the search start
       self.0[search_start]
         .iter()
         // only consider states that are contained within the search range, and have our wanted symbol
-        .filter(|s| s.span.1 <= search_end && s.rule.symbol.name == wanted_symbol)
+        .filter(|s| s.span.1 <= search_end && wanted_symbol == &s.rule.symbol)
         .map(|state| {
           // recursively find possible sequences that start directly after this state
           // TODO: this is probably easily amenable to some dynamic programming to reduce repeated work
@@ -131,7 +131,7 @@ impl Forest {
       // similar to the nonterminal case, but we don't have to search for multiple potential states --
       // all terminals with the same symbol_str are identical.
       let leaf = SynTree::Leaf(Word {
-        value: next_production.symbol_str().to_string(),
+        value: next_production.symbol.to_string(),
         span: (search_start, search_start + 1),
       });
 
@@ -185,7 +185,7 @@ impl Forest {
       // the end of the string, and are named by the grammar's start symbol
       let root_states = self.0[0]
         .iter()
-        .filter(|state| state.span.1 == self.len() && state.rule.symbol.name == g.start)
+        .filter(|state| state.span.1 == self.len() && state.rule.symbol == g.start)
         .map(|state| SynTree::Branch(state.into(), Vec::new()));
       // use make_trees to generate all possible filled-in trees from each seed tree
       root_states.fold(Vec::<SynTree<Rc<Rule>, String>>::new(), |mut prev, tree| {

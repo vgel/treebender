@@ -47,7 +47,7 @@ impl Grammar {
         let bare_self = SynTree::Branch(
           Constituent {
             span: cons.span,
-            value: cons.value.symbol.name.clone(),
+            value: cons.value.symbol.clone(),
           },
           bare_children,
         );

@@ -5,64 +5,51 @@ use std::rc::Rc;
 use crate::featurestructure::NodeRef;
 use crate::utils::Err;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Symbol {
-  pub name: String,
-}
-
-impl Symbol {
-  pub fn new(name: String) -> Self {
-    Self { name }
-  }
-}
-
-impl fmt::Display for Symbol {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.name)
-  }
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ProductionKind {
+  Terminal,
+  Nonterminal,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Production {
-  Terminal(String),
-  Nonterminal(Symbol),
+pub struct Production {
+  pub kind: ProductionKind,
+  pub symbol: String,
 }
 
 impl Production {
-  pub fn symbol_str(&self) -> &str {
-    match self {
-      Self::Terminal(s) => s,
-      Self::Nonterminal(s) => &s.name,
+  pub fn new_terminal(symbol: String) -> Self {
+    Self {
+      kind: ProductionKind::Terminal,
+      symbol,
+    }
+  }
+
+  pub fn new_nonterminal(symbol: String) -> Self {
+    Self {
+      kind: ProductionKind::Nonterminal,
+      symbol,
     }
   }
 
   pub fn is_terminal(&self) -> bool {
-    match self {
-      Self::Terminal(_) => true,
-      _ => false,
-    }
+    self.kind == ProductionKind::Terminal
   }
 
   pub fn is_nonterminal(&self) -> bool {
-    match self {
-      Self::Nonterminal(_) => true,
-      _ => false,
-    }
+    self.kind == ProductionKind::Nonterminal
   }
 }
 
 impl fmt::Display for Production {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match self {
-      Self::Terminal(s) => write!(f, "{}", s),
-      Self::Nonterminal(s) => write!(f, "{}", s),
-    }
+    write!(f, "{}", self.symbol)
   }
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Rule {
-  pub symbol: Symbol,
+  pub symbol: String,
   pub features: NodeRef,
   pub productions: Vec<Production>,
 }
@@ -74,10 +61,6 @@ impl Rule {
 
   pub fn is_empty(&self) -> bool {
     self.len() == 0
-  }
-
-  pub fn symbol_str(&self) -> String {
-    self.symbol.name.clone()
   }
 }
 
@@ -126,15 +109,13 @@ impl Grammar {
   pub fn new(rules: Vec<Rule>) -> Result<Self, Err> {
     assert!(!rules.is_empty());
 
-    let nonterminals: HashSet<String> = rules.iter().map(|r| r.symbol.name.clone()).collect();
-    let start = rules[0].symbol.name.clone();
+    let nonterminals: HashSet<String> = rules.iter().map(|r| r.symbol.clone()).collect();
+    let start = rules[0].symbol.clone();
 
     for r in rules.iter() {
       for p in r.productions.iter() {
-        if let Production::Nonterminal(sym) = p {
-          if !nonterminals.contains(&sym.name) {
-            return Err(format!("missing rules for nonterminal {}", sym.name).into());
-          }
+        if p.is_nonterminal() && !nonterminals.contains(&p.symbol) {
+          return Err(format!("missing rules for nonterminal {}", p.symbol).into());
         }
       }
     }
@@ -142,7 +123,7 @@ impl Grammar {
     let rules: HashMap<String, Vec<Rc<Rule>>> =
       rules.into_iter().fold(HashMap::new(), |mut map, rule| {
         map
-          .entry(rule.symbol.name.clone())
+          .entry(rule.symbol.clone())
           .or_insert_with(Vec::new)
           .push(Rc::new(rule));
         map
@@ -166,10 +147,10 @@ impl Grammar {
 impl Grammar {
   fn rule_is_nullable(nullables: &HashSet<String>, rule: &Rule) -> bool {
     rule.is_empty()
-      || rule.productions.iter().all(|p| match p {
-        Production::Nonterminal(s) => nullables.contains(&s.name),
-        Production::Terminal(s) => nullables.contains(s),
-      })
+      || rule
+        .productions
+        .iter()
+        .all(|p| p.is_nonterminal() && nullables.contains(&p.symbol))
   }
 
   fn find_nullables(rules: &HashMap<String, Vec<Rc<Rule>>>) -> HashSet<String> {
@@ -179,8 +160,8 @@ impl Grammar {
     while last_length != nullables.len() {
       last_length = nullables.len();
       for r in rules.values().flatten() {
-        if !nullables.contains(&r.symbol.name) && Self::rule_is_nullable(&nullables, &r) {
-          nullables.insert(r.symbol.name.clone());
+        if !nullables.contains(&r.symbol) && Self::rule_is_nullable(&nullables, &r) {
+          nullables.insert(r.symbol.clone());
         }
       }
     }
