@@ -196,7 +196,7 @@ fn test_parse_grammar() {
        S -> N[ case: nom, pron: #1, num: #2 ] TV[ num: #2 ] N[ case: acc, needs_pron: #1 ];
        S -> N[ case: nom, num: #1 ] CV[ num: #num ] Comp S;
 
-       N[ num: sg, pron: she ]     -> Mary;
+       N[ num: sg, pron: she ]     -> mary;
        IV[ num: top, tense: past ] -> fell;
        TV[ num: top, tense: past ] -> kissed;
        CV[ num: top, tense: past ] -> said;
@@ -219,7 +219,7 @@ fn test_parse_grammar() {
   assert_eq!(g.rules.get("CV").unwrap().len(), 1);
   assert_eq!(g.rules.get("Comp").unwrap().len(), 1);
   assert!(g.rules.get("that").is_none());
-  assert!(g.rules.get("Mary").is_none());
+  assert!(g.rules.get("mary").is_none());
 }
 
 #[test]
