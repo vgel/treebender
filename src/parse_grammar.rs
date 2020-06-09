@@ -89,8 +89,14 @@ fn needed_char(c: char, s: &str) -> ParseResult<char> {
 
 /// Tries to skip 1 or more \s characters and comments
 fn skip_whitespace(s: &str) -> &str {
-  regex_static!(WHITESPACE_OR_COMMENT, r"\s+(//.*?\n\s+)*");
+  regex_static!(WHITESPACE_OR_COMMENT, r"\s*(//.*?\n\s*)*");
   optional_re(&*WHITESPACE_OR_COMMENT, s).1
+}
+
+// Tries to skip 1 or more non-newline whitespace characters
+fn skip_whitespace_nonnewline(s: &str) -> &str {
+  regex_static!(WHITESPACE_NONNEWLINE, r"[\s&&[^\n]]*");
+  optional_re(&*WHITESPACE_NONNEWLINE, s).1
 }
 
 /// Tries to parse a name made of letters, numbers, - and _
@@ -172,7 +178,7 @@ fn parse_featurestructure(s: &str) -> ParseResult<Vec<Feature>> {
 
 fn parse_production(s: &str) -> ParseResult<(Production, Vec<Feature>)> {
   let (name, s) = parse_name(s).map_err(|e| -> Err { format!("symbol: {}", e).into() })?;
-  let s = skip_whitespace(s);
+  let s = skip_whitespace_nonnewline(s);
   let (features, s) = if s.starts_with('[') {
     parse_featurestructure(s)?
   } else {
@@ -223,11 +229,15 @@ fn parse_rule(s: &str) -> ParseResult<Rule> {
   let mut prods_features = Vec::new();
   let mut rem = s;
   loop {
-    rem = skip_whitespace(rem);
-    if let (Some(_), s) = optional_char(';', rem) {
-      rem = s;
+    rem = skip_whitespace_nonnewline(rem);
+
+    let try_newline = skip_whitespace(rem);
+    if try_newline != rem {
+      // end of line, exit loop
+      rem = try_newline;
       break;
     }
+
     let (prod, s) =
       parse_production(rem).map_err(|e| -> Err { format!("rule production: {}", e).into() })?;
     prods_features.push(prod);

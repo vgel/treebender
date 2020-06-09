@@ -70,12 +70,12 @@ impl Grammar {
 #[test]
 fn test_unification_blocking() {
   let g: Grammar = r#"
-    S -> N[ case: nom, pron: #1 ] TV N[ case: acc, needs_pron: #1 ];
-    TV -> likes;
-    N[ case: nom, pron: she ] -> she;
-    N[ case: nom, pron: he ] -> he;
-    N[ case: acc, pron: he ] -> him;
-    N[ case: acc, pron: ref, needs_pron: he ] -> himself;
+    S -> N[ case: nom, pron: #1 ] TV N[ case: acc, needs_pron: #1 ]
+    TV -> likes
+    N[ case: nom, pron: she ] -> she
+    N[ case: nom, pron: he ] -> he
+    N[ case: acc, pron: he ] -> him
+    N[ case: acc, pron: ref, needs_pron: he ] -> himself
   "#
   .parse()
   .unwrap();

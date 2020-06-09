@@ -173,15 +173,15 @@ impl Grammar {
 #[test]
 fn test_parse_grammar() {
   let g: Grammar = r#"
-       S -> N[ case: nom, num: #1 ] IV[ num: #1 ];
-       S -> N[ case: nom, pron: #1, num: #2 ] TV[ num: #2 ] N[ case: acc, needs_pron: #1 ];
-       S -> N[ case: nom, num: #1 ] CV[ num: #num ] Comp S;
+       S -> N[ case: nom, num: #1 ] IV[ num: #1 ]
+       S -> N[ case: nom, pron: #1, num: #2 ] TV[ num: #2 ] N[ case: acc, needs_pron: #1 ]
+       S -> N[ case: nom, num: #1 ] CV[ num: #num ] Comp S
 
-       N[ num: sg, pron: she ]     -> mary;
-       IV[ num: top, tense: past ] -> fell;
-       TV[ num: top, tense: past ] -> kissed;
-       CV[ num: top, tense: past ] -> said;
-       Comp -> that;
+       N[ num: sg, pron: she ]     -> mary
+       IV[ num: top, tense: past ] -> fell
+       TV[ num: top, tense: past ] -> kissed
+       CV[ num: top, tense: past ] -> said
+       Comp -> that
      "#
   .parse()
   .unwrap();
@@ -206,10 +206,10 @@ fn test_parse_grammar() {
 #[test]
 fn test_find_nullables() {
   let g: Grammar = r#"
-      S -> A B;
-      A -> c;
-      B -> D D;
-      D ->;
+      S -> A B
+      A -> c
+      B -> D D
+      D ->
     "#
   .parse()
   .unwrap();

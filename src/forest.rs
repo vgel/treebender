@@ -234,8 +234,8 @@ impl fmt::Display for Forest {
 #[test]
 fn test_parse_chart() {
   let g: Grammar = r#"
-    S -> x;
-    S -> S S;
+    S -> x
+    S -> S S
   "#
   .parse()
   .unwrap();
@@ -284,8 +284,8 @@ fn test_tree_generation() {
   //  (S (S (S x) (S x)) (S (S x) (S x))) -> [xx][xx]
 
   let g = r#"
-      S -> x;
-      S -> S S;
+      S -> x
+      S -> S S
     "#
   .parse()
   .unwrap();
