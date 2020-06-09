@@ -232,7 +232,7 @@ fn parse_rule(s: &str) -> ParseResult<Rule> {
     rem = skip_whitespace_nonnewline(rem);
 
     let try_newline = skip_whitespace(rem);
-    if try_newline != rem {
+    if rem.is_empty() || try_newline != rem {
       // end of line, exit loop
       rem = try_newline;
       break;
