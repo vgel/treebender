@@ -9,6 +9,8 @@ pub mod rules;
 pub mod syntree;
 pub mod utils;
 
+use std::fs;
+use std::path;
 use std::rc::Rc;
 
 use crate::earley::{parse_chart, Chart};
@@ -64,6 +66,10 @@ impl Grammar {
       .into_iter()
       .filter_map(|t| Self::unify_tree(t).map(Some).unwrap_or(None))
       .collect::<Vec<_>>()
+  }
+
+  pub fn read_from_file<P: AsRef<path::Path>>(path: P) -> Result<Self, Err> {
+    fs::read_to_string(path)?.parse()
   }
 }
 
