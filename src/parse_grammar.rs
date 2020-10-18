@@ -185,7 +185,9 @@ fn parse_production(s: &str) -> ParseResult<(Production, Vec<Feature>)> {
     (Vec::new(), s)
   };
 
-  if name.chars().next().unwrap().is_lowercase() {
+  if name.chars().next().unwrap().is_uppercase() {
+    Ok(((Production::new_nonterminal(name.to_string()), features), s))
+  } else {
     if !features.is_empty() {
       Err(format!("terminal (lower-case) cannot have features: {} {}", name, s).into())
     } else {
@@ -202,8 +204,6 @@ fn parse_production(s: &str) -> ParseResult<(Production, Vec<Feature>)> {
         s,
       ))
     }
-  } else {
-    Ok(((Production::new_nonterminal(name.to_string()), features), s))
   }
 }
 
