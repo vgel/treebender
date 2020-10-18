@@ -59,8 +59,8 @@ fn main() -> Result<(), Err> {
   let mut opts = opts.into_iter().skip(1);
   let filename = opts.next().unwrap();
 
-  let mut print_fs = true;      // default to printing feature structures
-  let mut print_chart = false;  // default to *not* printing the chart
+  let mut print_fs = true; // default to printing feature structures
+  let mut print_chart = false; // default to *not* printing the chart
   for o in opts {
     if o == "-h" || o == "--help" {
       println!("{}", usage(&prog_name));
