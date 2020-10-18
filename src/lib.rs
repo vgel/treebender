@@ -13,19 +13,19 @@ use std::fs;
 use std::path;
 use std::rc::Rc;
 
-use crate::earley::{parse_chart, Chart};
-use crate::featurestructure::NodeRef;
-use crate::forest::Forest;
-use crate::rules::{Grammar, Rule};
-use crate::syntree::{Constituent, SynTree};
+pub use crate::earley::{parse_chart, Chart};
+pub use crate::featurestructure::NodeRef;
+pub use crate::forest::Forest;
+pub use crate::rules::{Grammar, Rule};
+pub use crate::syntree::{Constituent, SynTree};
 pub use crate::utils::Err;
 
 impl Grammar {
-  fn parse_chart(&self, input: &[&str]) -> Chart {
+  pub fn parse_chart(&self, input: &[&str]) -> Chart {
     parse_chart(&self, input)
   }
 
-  fn parse_forest(&self, input: &[&str]) -> Forest {
+  pub fn parse_forest(&self, input: &[&str]) -> Forest {
     Forest::from(self.parse_chart(input))
   }
 
