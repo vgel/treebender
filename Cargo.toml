@@ -1,10 +1,8 @@
 [package]
-name = "earley-rust"
+name = "treebender"
 version = "0.1.0"
 authors = ["Theia Vogel <theia@vgel.me>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 regex = "1"
