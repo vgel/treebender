@@ -1,3 +1,5 @@
+![Maintenance](https://img.shields.io/badge/maintenance-experimental-blue.svg)
+
 # treebender
 
 A symbolic natural language parsing library for Rust, inspired by
@@ -517,3 +519,5 @@ approachable -- there's a lot of Rust ceremony around `Rc<RefCell<...>>`
 because using an arena allocation crate seemed ~~too har~~like overkill, but
 that is somewhat mitigated by the `NodeRef` type alias. Hit me up at
 https://vgel.me/contact if you need help with anything here!
+
+License: MIT
