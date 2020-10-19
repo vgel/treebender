@@ -1,0 +1,38 @@
+// sentence rules
+S -> N IV
+S -> N TV N
+S -> N CV Comp S
+
+// pronouns
+N -> he
+N -> him
+N -> himself
+N -> she
+N -> her
+N -> herself
+N -> they
+N -> them
+N -> themselves
+N -> themself
+
+// names, lowercase as they are terminals
+N -> mary
+N -> sue
+N -> takeshi
+N -> robert
+
+// complementizer
+Comp -> that
+
+// verbs -- intransitive, transitive, and clausal
+IV -> falls
+IV -> fall
+IV -> fell
+
+TV -> likes
+TV -> like
+TV -> liked
+
+CV -> says
+CV -> say
+CV -> said

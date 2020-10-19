@@ -14,7 +14,7 @@ pub type Err = Box<dyn Error + 'static>;
 ///   vec![5, 6, 7],
 /// ];
 ///
-/// assert_eq!(earley_rust::utils::combinations(&v), vec![
+/// assert_eq!(treebender::utils::combinations(&v), vec![
 ///   vec![1, 2, 4, 5],
 ///   vec![1, 3, 4, 5],
 ///   vec![1, 2, 4, 6],
