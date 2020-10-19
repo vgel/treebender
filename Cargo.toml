@@ -3,6 +3,14 @@ name = "treebender"
 version = "0.1.0"
 authors = ["Theia Vogel <theia@vgel.me>"]
 edition = "2018"
+description = "An HDPSG inspired symbolic NLP library for Rust"
+repository = "https://github.com/vgel/treebender"
+license = "MIT"
+keywords = ["nlp", "parsing", "earley", "syntax", "hdpsg"]
+categories = ["science", "text-processing"]
+
+[badges]
+maintenance = { status = "experimental" }
 
 [dependencies]
 regex = "1"
