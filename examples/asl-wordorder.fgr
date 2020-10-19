@@ -1,0 +1,18 @@
+// *very* basic / incomplete grammar for ASL topicalization
+// allow all word orders, but topicalized elements must come first
+
+S -> NP IV
+S -> IV NP[ topicalized: n ]
+S -> NP TV NP[ topicalized: n ]
+S -> NP NP[ topicalized: n ] TV
+S -> TV NP[ topicalized: n ] NP[ topicalized: n ]
+
+NP -> N
+NP[ topicalized: y ] -> N Topic
+Topic -> nm-raised-eyebrows
+
+N -> boy
+N -> ball
+
+IV -> sit
+TV -> throw

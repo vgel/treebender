@@ -2,6 +2,18 @@
 A symbolic natural language parsing library for Rust, inspired by
 [HDPSG](https://en.wikipedia.org/wiki/Head-driven_phrase_structure_grammar).
 
+# What is this?
+This is a library for parsing natural or constructed languages into syntax trees
+and feature structures. There's no machine learning or probabilistic models,
+everything is hand-crafted and deterministic.
+
+You can find out more about the motivations of this project in
+[this blog post](https://vgel.me/posts/symbolic-linguistics-part1/).
+
+## But what are you using it for?
+I'm using this to parse a constructed language for my upcoming xenolinguistics
+game, [Themengi](https://vgel.me/themengi/).
+
 # Motivation
 Using a simple 80-line grammar, introduced in the tutorial below, we can parse
 a simple subset of English, checking reflexive pronoun binding, case, and
@@ -47,20 +59,41 @@ Parsed 1 tree
 ```
 
 Low resource language? Low problem! No need to train on gigabytes of text, just
-write a grammar using your very good brain.
+write a grammar using your brain. Let's hypothesize that in
+American Sign Language, topicalized nouns (expressed with raised eyebrows)
+must appear first in the sentence. We can write a small grammar (18 lines),
+and plug in some sentences:
 
+```text
+$ cargo run --bin cli examples/asl-wordorder.fgr -n
+> boy sit
+Parsed 1 tree
+(0..2: S
+  (0..1: NP ((0..1: N (0..1: boy))))
+  (1..2: IV (1..2: sit)))
 
+> boy throw ball
+Parsed 1 tree
+(0..3: S
+  (0..1: NP ((0..1: N (0..1: boy))))
+  (1..2: TV (1..2: throw))
+  (2..3: NP ((2..3: N (2..3: ball)))))
 
-# What is this?
-This is a library for parsing natural or constructed languages into syntax trees
-and feature structures. There's no machine learning or probabilistic models,
-everything is hand-crafted and deterministic.
+> ball nm-raised-eyebrows boy throw
+Parsed 1 tree
+(0..4: S
+  (0..2: NP
+    (0..1: N (0..1: ball))
+    (1..2: Topic (1..2: nm-raised-eyebrows)))
+  (2..3: NP ((2..3: N (2..3: boy))))
+  (3..4: TV (3..4: throw)))
 
-You can find out more about the motivations of this project in
-[this blog post](https://vgel.me/posts/symbolic-linguistics-part1/).
+> boy throw ball nm-raised-eyebrows
+Parsed 0 trees
+```
 
 # Tutorial
-As am example, let's say we want to build a parser for English reflexive
+As an example, let's say we want to build a parser for English reflexive
 pronouns (himself, herself, themselves, themself, itself). We'll also support
 number ("He likes X" v.s. "They like X") and simple embedded clauses
 ("He said that they like X").
@@ -452,6 +485,37 @@ If this is interesting to you and you want to learn more, you can check out
 the excellent textbook [Syntactic Theory: A Formal Introduction (2nd ed.)](https://web.stanford.edu/group/cslipublications/cslipublications/site/1575864002.shtml),
 and the [DELPH-IN project](http://www.delph-in.net/wiki/index.php/Home), whose
 work on the LKB inspired this simplified version.
+
+# Using from code
+I need to write this section in more detail, but if you're comfortable with Rust,
+I suggest looking through the codebase. It's not perfect, it started as one of
+my first Rust projects (after migrating through F# -> TypeScript -> C in search
+of the right performance/ergonomics tradeoff), and it could use more tests,
+but overall it's not too bad.
+
+Basically, the processing pipeline is:
+
+1. Make a `Grammar` struct
+  * `Grammar` is defined in `rules.rs`.
+  * The easiest way to make a `Grammar` is `Grammar::parse_from_file`, which is
+    mostly a hand-written recusive descent parser in `parse_grammar.rs`. Yes,
+    I recognize the irony here.
+2. It takes input (in `Grammar::parse`, which does everything for you, or
+   `Grammar::parse_chart`, which just does the chart)
+3. The input is first chart-parsed in `earley.rs`
+4. Then, a forest is built from the chart, in `forest.rs`, using an algorithm
+    I found in a very useful blog series I forget the URL for, because the
+    algorithms in the academic literature for this are... weird.
+5. Finally, the feature unification is used to prune the forest down to only
+   valid trees. It would be more efficient to do this during parsing, but meh.
+
+The most interesting thing you can do via code and not via the CLI is probably
+getting at the raw feature DAG, as that would let you do things like pronoun
+coreference. The DAG code is in `featurestructure.rs`, and should be fairly
+approachable -- there's a lot of Rust ceremony around `Rc<RefCell<...>>`
+because using an arena allocation crate seemed ~~too har~~like overkill, but
+that is somewhat mitigated by the `NodeRef` type alias. Hit me up at
+https://vgel.me/contact if you need help with anything here!
 */
 
 #[macro_use]
