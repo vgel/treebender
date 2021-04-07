@@ -222,6 +222,42 @@ impl NodeRef {
     seen.insert(self.clone(), cloned.clone());
     cloned
   }
+
+  fn insert_into_hashmap(&self, prefix: &str, map: &mut HashMap<String, String>) {
+    let n = self.borrow();
+    match &*n {
+      Node::Forwarded(n1) => n1.insert_into_hashmap(prefix, map),
+      Node::Top => {
+        map.insert(prefix.to_string(), "**top**".to_string());
+      }
+      Node::Str(s) => {
+        map.insert(prefix.to_string(), s.clone());
+      }
+      Node::Edged(edges) => {
+        for (k, v) in edges.iter() {
+          let new_prefix = if prefix.len() == 0 {
+            k.to_string()
+          } else {
+            let mut new_prefix = String::with_capacity(prefix.len() + 1 + k.len());
+            new_prefix.push_str(prefix);
+            new_prefix.push('.');
+            new_prefix.push_str(k);
+            new_prefix
+          };
+
+          v.insert_into_hashmap(&new_prefix, map);
+        }
+      }
+    }
+  }
+}
+
+impl From<NodeRef> for HashMap<String, String> {
+  fn from(nr: NodeRef) -> Self {
+    let mut map = HashMap::new();
+    nr.insert_into_hashmap("", &mut map);
+    return map;
+  }
 }
 
 impl Clone for NodeRef {
@@ -388,59 +424,116 @@ impl fmt::Display for NodeRef {
   }
 }
 
-#[test]
-fn test_construct_fs() {
-  let root = NodeRef::new_from_paths(vec![
-    Feature {
-      path: "a.b".to_string(),
-      tag: Some("1".to_string()),
-      value: NodeRef::new_top(),
-    },
-    Feature {
-      path: "a.b.c".to_string(),
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  fn hashmap_is(a: HashMap<String, String>, gold: &[(&str, &str)]) -> bool {
+    let gold = gold
+      .iter()
+      .map(|(k, v)| (k.to_string(), v.to_string()))
+      .collect::<HashMap<_, _>>();
+
+    let mut same = true;
+
+    // additions
+    for (k, v) in a.iter() {
+      if gold.get(k).is_none() {
+        same = false;
+        eprintln!("+ Unexpected key {}: {}", k, v);
+      }
+    }
+
+    // different
+    for (k, v) in a.iter() {
+      if let Some(gv) = gold.get(k) {
+        if gv != v {
+          same = false;
+          eprintln!("~ Different key {}: given {} != gold {}", k, v, gv);
+        }
+      }
+    }
+
+    // missing
+    for (k, v) in gold.iter() {
+      if a.get(k).is_none() {
+        same = false;
+        eprintln!("- Missing key {}: {}", k, v);
+      }
+    }
+
+    same
+  }
+
+  #[test]
+  fn test_construct_fs() {
+    let root = NodeRef::new_from_paths(vec![
+      Feature {
+        path: "a.b".to_string(),
+        tag: Some("1".to_string()),
+        value: NodeRef::new_top(),
+      },
+      Feature {
+        path: "a.b.c".to_string(),
+        tag: None,
+        value: NodeRef::new_str("foo".to_string()),
+      },
+      Feature {
+        path: "a.b.d".to_string(),
+        tag: None,
+        value: NodeRef::new_str("bar".to_string()),
+      },
+      Feature {
+        path: "e".to_string(),
+        tag: Some("1".to_string()),
+        value: NodeRef::new_top(),
+      },
+    ])
+    .unwrap();
+
+    println!("{}", root);
+  }
+
+  #[test]
+  fn test_unify_tags() {
+    let fs1 = NodeRef::new_from_paths(vec![
+      Feature {
+        path: "a.b".to_string(),
+        tag: Some("1".to_string()),
+        value: NodeRef::new_top(),
+      },
+      Feature {
+        path: "c".to_string(),
+        tag: Some("1".to_string()),
+        value: NodeRef::new_top(),
+      },
+    ])
+    .unwrap();
+
+    let fs2 = NodeRef::new_from_paths(vec![Feature {
+      path: "c".to_string(),
       tag: None,
       value: NodeRef::new_str("foo".to_string()),
-    },
-    Feature {
-      path: "a.b.d".to_string(),
-      tag: None,
-      value: NodeRef::new_str("bar".to_string()),
-    },
-    Feature {
-      path: "e".to_string(),
-      tag: Some("1".to_string()),
-      value: NodeRef::new_top(),
-    },
-  ])
-  .unwrap();
+    }])
+    .unwrap();
 
-  println!("{}", root);
-}
+    assert!(hashmap_is(
+      HashMap::from(fs1.clone()),
+      &[("a.b", "**top**"), ("c", "**top**")]
+    ));
 
-#[test]
-fn test_unify_tags() {
-  let fs1 = NodeRef::new_from_paths(vec![
-    Feature {
-      path: "a.b".to_string(),
-      tag: Some("1".to_string()),
-      value: NodeRef::new_top(),
-    },
-    Feature {
-      path: "c".to_string(),
-      tag: Some("1".to_string()),
-      value: NodeRef::new_top(),
-    },
-  ])
-  .unwrap();
+    assert!(hashmap_is(HashMap::from(fs2.clone()), &[("c", "foo")]));
 
-  let fs2 = NodeRef::new_from_paths(vec![Feature {
-    path: "c".to_string(),
-    tag: None,
-    value: NodeRef::new_str("foo".to_string()),
-  }])
-  .unwrap();
+    NodeRef::unify(fs1.clone(), fs2.clone()).unwrap();
 
-  NodeRef::unify(fs1.clone(), fs2).unwrap();
+    assert!(hashmap_is(
+      HashMap::from(fs1.clone()),
+      &[("a.b", "foo"), ("c", "foo")]
+    ));
 
-  println!("{}", fs1);
+    assert!(hashmap_is(
+      HashMap::from(fs2.clone()),
+      &[("a.b", "foo"), ("c", "foo")]
+    ));
+  }
 }
