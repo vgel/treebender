@@ -1,6 +1,6 @@
 [package]
 name = "treebender"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Theia Vogel <theia@vgel.me>"]
 edition = "2018"
 description = "An HDPSG inspired symbolic NLP library for Rust"
