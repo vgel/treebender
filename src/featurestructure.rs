@@ -2,7 +2,7 @@ use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::utils::Err;
 
@@ -33,7 +33,7 @@ enum Node {
 
 /// An interior-ly mutable ref to a Node.
 #[derive(Debug)]
-pub struct NodeRef(Rc<RefCell<Node>>);
+pub struct NodeRef(Arc<RefCell<Node>>);
 
 impl NodeRef {
   pub fn new_top() -> Self {
@@ -184,7 +184,7 @@ impl NodeRef {
 
 impl NodeRef {
   fn new(n: Node) -> Self {
-    Self(Rc::new(RefCell::new(n)))
+    Self(Arc::new(RefCell::new(n)))
   }
 
   fn borrow(&self) -> Ref<Node> {
@@ -270,7 +270,7 @@ impl Clone for NodeRef {
 impl PartialEq for NodeRef {
   /// Compares NodeRefs via pointer equality. Does not dereference forwarding chains.
   fn eq(&self, other: &Self) -> bool {
-    Rc::ptr_eq(&self.0, &other.0)
+    Arc::ptr_eq(&self.0, &other.0)
   }
 }
 
