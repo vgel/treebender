@@ -531,7 +531,7 @@ pub mod utils;
 
 use std::fs;
 use std::path;
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub use crate::earley::{parse_chart, Chart};
 pub use crate::featurestructure::NodeRef;
@@ -550,7 +550,7 @@ impl Grammar {
   }
 
   pub fn unify_tree(
-    tree: SynTree<Rc<Rule>, String>,
+    tree: SynTree<Arc<Rule>, String>,
   ) -> Result<(SynTree<String, String>, NodeRef), Err> {
     match tree {
       SynTree::Leaf(w) => Ok((SynTree::Leaf(w), NodeRef::new_top())),

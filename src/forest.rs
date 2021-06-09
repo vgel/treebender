@@ -1,5 +1,5 @@
 use std::fmt;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::earley::Chart;
 use crate::rules::{Grammar, Rule};
@@ -8,12 +8,12 @@ use crate::utils::combinations;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ForestState {
-  rule: Rc<Rule>,
+  rule: Arc<Rule>,
   span: (usize, usize),
 }
 
 impl ForestState {
-  pub fn new(rule: &Rc<Rule>, start: usize, end: usize) -> Self {
+  pub fn new(rule: &Arc<Rule>, start: usize, end: usize) -> Self {
     Self {
       rule: rule.clone(),
       span: (start, end),
@@ -27,8 +27,8 @@ impl fmt::Display for ForestState {
   }
 }
 
-impl Into<Constituent<Rc<Rule>>> for &ForestState {
-  fn into(self) -> Constituent<Rc<Rule>> {
+impl Into<Constituent<Arc<Rule>>> for &ForestState {
+  fn into(self) -> Constituent<Arc<Rule>> {
     Constituent {
       value: self.rule.clone(),
       span: self.span,
@@ -50,7 +50,7 @@ impl Forest {
 
   /// Checks if a subtree has already been completed by make_trees(),
   /// or if it is a leaf and doesn't need to be completed
-  fn subtree_is_complete(node: &SynTree<Rc<Rule>, String>) -> bool {
+  fn subtree_is_complete(node: &SynTree<Arc<Rule>, String>) -> bool {
     if let Some((cons, children)) = node.get_branch() {
       cons.value.productions.len() == children.len()
     } else {
@@ -94,7 +94,7 @@ impl Forest {
     prod_idx: usize,
     search_start: usize,
     search_end: usize,
-  ) -> Vec<Vec<SynTree<Rc<Rule>, String>>> {
+  ) -> Vec<Vec<SynTree<Arc<Rule>, String>>> {
     if prod_idx == rule.len() && search_start == search_end {
       // base case, we consumed the whole rule and the whole span together.
       // provide a single empty sequence as a base for prepending onto as we unwind the stack
@@ -154,8 +154,8 @@ impl Forest {
   fn make_trees(
     &self,
     g: &Grammar,
-    tree: SynTree<Rc<Rule>, String>,
-  ) -> Vec<SynTree<Rc<Rule>, String>> {
+    tree: SynTree<Arc<Rule>, String>,
+  ) -> Vec<SynTree<Arc<Rule>, String>> {
     if Self::subtree_is_complete(&tree) {
       vec![tree]
     } else {
@@ -177,7 +177,7 @@ impl Forest {
     }
   }
 
-  pub fn trees(&self, g: &Grammar) -> Vec<SynTree<Rc<Rule>, String>> {
+  pub fn trees(&self, g: &Grammar) -> Vec<SynTree<Arc<Rule>, String>> {
     if self.is_empty() {
       Vec::new()
     } else {
@@ -188,11 +188,14 @@ impl Forest {
         .filter(|state| state.span.1 == self.len() && state.rule.symbol == g.start)
         .map(|state| SynTree::Branch(state.into(), Vec::new()));
       // use make_trees to generate all possible filled-in trees from each seed tree
-      root_states.fold(Vec::<SynTree<Rc<Rule>, String>>::new(), |mut prev, tree| {
-        let mut trees = self.make_trees(g, tree);
-        prev.append(&mut trees);
-        prev
-      })
+      root_states.fold(
+        Vec::<SynTree<Arc<Rule>, String>>::new(),
+        |mut prev, tree| {
+          let mut trees = self.make_trees(g, tree);
+          prev.append(&mut trees);
+          prev
+        },
+      )
     }
   }
 }

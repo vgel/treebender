@@ -1,8 +1,9 @@
-use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::sync::Arc;
+use std::sync::RwLockReadGuard;
+use std::sync::RwLockWriteGuard;
+use std::sync::{Arc, RwLock};
 
 use crate::utils::Err;
 
@@ -33,7 +34,7 @@ enum Node {
 
 /// An interior-ly mutable ref to a Node.
 #[derive(Debug)]
-pub struct NodeRef(Arc<RefCell<Node>>);
+pub struct NodeRef(Arc<RwLock<Node>>);
 
 impl NodeRef {
   pub fn new_top() -> Self {
@@ -184,19 +185,20 @@ impl NodeRef {
 
 impl NodeRef {
   fn new(n: Node) -> Self {
-    Self(Arc::new(RefCell::new(n)))
+    Self(Arc::new(RwLock::new(n)))
   }
 
-  fn borrow(&self) -> Ref<Node> {
-    self.0.borrow()
+  fn borrow(&self) -> RwLockReadGuard<Node> {
+    self.0.read().expect("NodeRef lock poisoned!")
   }
 
-  fn borrow_mut(&self) -> RefMut<Node> {
-    self.0.borrow_mut()
+  fn borrow_mut(&self) -> RwLockWriteGuard<Node> {
+    self.0.write().expect("NodeRef lock poisoned!")
   }
 
   fn replace(&self, n: Node) -> Node {
-    self.0.replace(n)
+    let mut write = self.borrow_mut();
+    std::mem::replace(&mut *write, n)
   }
 
   fn _deep_clone(&self, seen: &mut HashMap<NodeRef, NodeRef>) -> NodeRef {
@@ -279,7 +281,8 @@ impl Eq for NodeRef {}
 impl Hash for NodeRef {
   /// Hashes NodeRefs via pointer equality. Does not dereference forwarding chains.
   fn hash<H: Hasher>(&self, hasher: &mut H) {
-    self.0.as_ptr().hash(hasher)
+    let ptr = Arc::as_ptr(&self.0);
+    ptr.hash(hasher)
   }
 }
 

@@ -1,16 +1,16 @@
 use std::fmt;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::rules::{Grammar, Production, Rule};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LR0 {
-  pub rule: Rc<Rule>,
+  pub rule: Arc<Rule>,
   pub pos: usize,
 }
 
 impl LR0 {
-  pub fn new(rule: &Rc<Rule>) -> Self {
+  pub fn new(rule: &Arc<Rule>) -> Self {
     Self {
       rule: rule.clone(),
       pos: 0,
@@ -98,7 +98,7 @@ impl Chart {
 
   /// Get an owned state so that passing around &mut chart is more ergonomic
   /// The clone is fairly cheap, only an rc + 2 usize, State would be copy if not
-  /// for the Rc<Rule>
+  /// for the Arc<Rule>
   fn get_state(&self, k: usize, idx: usize) -> State {
     self.0[k][idx].clone()
   }

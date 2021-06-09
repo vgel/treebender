@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::featurestructure::NodeRef;
 use crate::utils::Err;
@@ -77,7 +77,7 @@ impl std::fmt::Display for Rule {
 #[derive(Debug)]
 pub struct Grammar {
   pub start: String,
-  pub rules: HashMap<String, Vec<Rc<Rule>>>,
+  pub rules: HashMap<String, Vec<Arc<Rule>>>,
   nullables: HashSet<String>,
   nonterminals: HashSet<String>,
 }
@@ -120,12 +120,12 @@ impl Grammar {
       }
     }
 
-    let rules: HashMap<String, Vec<Rc<Rule>>> =
+    let rules: HashMap<String, Vec<Arc<Rule>>> =
       rules.into_iter().fold(HashMap::new(), |mut map, rule| {
         map
           .entry(rule.symbol.clone())
           .or_insert_with(Vec::new)
-          .push(Rc::new(rule));
+          .push(Arc::new(rule));
         map
       });
 
@@ -153,7 +153,7 @@ impl Grammar {
         .all(|p| p.is_nonterminal() && nullables.contains(&p.symbol))
   }
 
-  fn find_nullables(rules: &HashMap<String, Vec<Rc<Rule>>>) -> HashSet<String> {
+  fn find_nullables(rules: &HashMap<String, Vec<Arc<Rule>>>) -> HashSet<String> {
     let mut nullables: HashSet<String> = HashSet::new();
 
     let mut last_length = 1;
