@@ -1,0 +1,78 @@
+// Sentence rules
+// Intransitive:
+// * Subject must be nominative case
+// * Subject and verb must agree in number (copied through #1)
+S -> N[ case: nom, num: #1 ] IV[ num: #1 ]
+// Transitive:
+// * Subject must be nominative case
+// * Subject and verb must agree in number (copied through #2)
+// * If there's a reflexive in the object position, make sure its `needs_pron`
+//   feature matches the subject's `pron` feature. If the object isn't a
+//   reflexive, then its `needs_pron` feature will implicitly be `**top**`, so
+//   will unify with anything.
+S -> N[ case: nom, pron: #1, num: #2 ] TV[ num: #2 ] N[ case: acc, needs_pron: #1 ]
+// Clausal:
+// * Subject must be nominative case
+// * Subject and verb must agree in number (copied through #1)
+// * Reflexives can't cross clause boundaries (*"He said that she likes himself"),
+//   so we can ignore reflexives and delegate to inner clause rule
+S -> N[ case: nom, num: #1 ] CV[ num: #1 ] Comp S
+
+// Pronouns
+// The added features are:
+// * num: sg or pl, whether this noun wants a singular verb (likes) or
+//   a plural verb (like). note this is grammatical number, so for example
+//   singular they takes plural agreement ("they like X", not *"they likes X")
+// * case: nom or acc, whether this noun is nominative or accusative case.
+//   nominative case goes in the subject, and accusative in the object.
+//   e.g., "he fell" and "she likes him", not *"him fell" and *"her likes he"
+// * pron: he, she, they, or ref -- what type of pronoun this is
+// * needs_pron: whether this is a reflexive that needs to bind to another
+//   pronoun.
+N[ num: sg, case: nom, pron: he ]                    -> he
+N[ num: sg, case: acc, pron: he ]                    -> him
+N[ num: sg, case: acc, pron: ref, needs_pron: he ]   -> himself
+N[ num: sg, case: nom, pron: she ]                   -> she
+N[ num: sg, case: acc, pron: she ]                   -> her
+N[ num: sg, case: acc, pron: ref, needs_pron: she]   -> herself
+N[ num: pl, case: nom, pron: they ]                  -> they
+N[ num: pl, case: acc, pron: they ]                  -> them
+N[ num: pl, case: acc, pron: ref, needs_pron: they ] -> themselves
+N[ num: sg, case: acc, pron: ref, needs_pron: they ] -> themself
+
+// Names
+// The added features are:
+// * num: sg, as people are singular ("mary likes her" / *"mary like her")
+// * case: **top**, as names can be both subjects and objects
+//   ("mary likes her" / "she likes mary")
+// * pron: whichever pronoun the person uses for reflexive agreement
+//   mary    pron: she  => mary likes herself
+//   sue     pron: they => sue likes themself
+//   takeshi pron: he   => takeshi likes himself
+N[ num: sg, case: **top**, pron: she ]  -> mary
+N[ num: sg, case: **top**, pron: they ] -> sue
+N[ num: sg, case: **top**, pron: he ]   -> takeshi
+N[ num: sg, case: **top**, pron: he ]   -> robert
+
+// Complementizer doesn't need features
+Comp -> that
+
+// Verbs -- intransitive, transitive, and clausal
+// The added features are:
+// * num: sg, pl, or **top** -- to match the noun numbers.
+//   **top** will match either sg or pl, as past-tense verbs in English
+//   don't agree in number: "he fell" and "they fell" are both fine
+// * tense: past or nonpast -- this won't be used for agreement, but will be
+//   copied into the final feature structure, and the client code could do
+//   something with it
+IV[ num:      sg, tense: nonpast ] -> falls
+IV[ num:      pl, tense: nonpast ] -> fall
+IV[ num: **top**, tense: past ]    -> fell
+
+TV[ num:      sg, tense: nonpast ] -> likes
+TV[ num:      pl, tense: nonpast ] -> like
+TV[ num: **top**, tense: past ]    -> liked
+
+CV[ num:      sg, tense: nonpast ] -> says
+CV[ num:      pl, tense: nonpast ] -> say
+CV[ num: **top**, tense: past ]    -> said

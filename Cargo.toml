@@ -15,3 +15,10 @@ maintenance = { status = "experimental" }
 [dependencies]
 regex = "1"
 lazy_static = "1"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "full_parse_reflexives"
+harness = false
