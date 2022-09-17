@@ -1,0 +1,26 @@
+S[roles: #1] -> Arg[st: #2] V[roles: #1, sts.s: #2, sts.do: #3, sts.io: #4] Arg[st: #3] Arg[st: #4]
+
+Vbare[
+  sts.s.case:  nom, sts.s.arg:  #1 **top**,
+  sts.do.case: acc, sts.do.arg: #2 **top**,
+  sts.io.case: acc, sts.io.arg: #3 **top**,
+  roles.agent: #1, roles.recipient: #2, roles.theme: #3
+] -> gave
+// go go gadget dative shifter (swap direct and indirect object, assign dative)
+Vdative[
+  roles: #1, sts.s: #2, sts.do: #3, sts.io.case: dat, sts.io.arg: #4
+] -> Vbare[
+  roles: #1, sts.s: #2, sts.io: #3, sts.do.arg: #4 
+]
+V[ sts: #1, roles: #2 ] -> Vbare[ sts: #1, roles: #2 ]
+V[ sts: #1, roles: #2 ] -> Vdative[ sts: #1, roles: #2 ]
+
+Arg[ st: #1 ] -> PP[ st: #1 ]
+Arg[ st: #1 ] -> NP[ st: #1 ]
+PP[ st.case: dat, st.arg: #1     ] -> to NP[ st.case: acc, st.arg: #1 ]
+NP[ st.case: nom, st.arg: i      ] -> i
+NP[ st.case: acc, st.arg: i      ] -> me
+NP[ st.case: nom, st.arg: she    ] -> she
+NP[ st.case: acc, st.arg: she    ] -> her
+NP[ st.case: nom, st.arg: apples ] -> apples
+NP[ st.case: acc, st.arg: apples ] -> apples
