@@ -53,8 +53,8 @@ struct Args {
 }
 
 impl Args {
-  fn make_error_message<'a>(msg: &str, prog_name: impl AsRef<str>) -> String {
-    return format!("argument error: {}.\n\n{}", msg, usage(prog_name.as_ref()));
+  fn make_error_message(msg: &str, prog_name: impl AsRef<str>) -> String {
+    format!("argument error: {}.\n\n{}", msg, usage(prog_name.as_ref()))
   }
 
   fn parse(v: Vec<String>) -> Result<Self, String> {
@@ -127,7 +127,7 @@ fn main() -> Result<(), Err> {
           return Ok(());
         }
         input.make_ascii_lowercase();
-        parse(&g, &input.trim(), opts.print_chart, opts.print_fs)?;
+        parse(&g, input.trim(), opts.print_chart, opts.print_fs)?;
         input.clear();
       }
       Err(error) => return Err(error.into()),

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::rules::{Grammar, Production, Rule};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LR0 {
   pub rule: Arc<Rule>,
   pub pos: usize,
@@ -50,7 +50,7 @@ impl fmt::Display for LR0 {
   }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct State {
   pub lr0: LR0,
   pub origin: usize,
@@ -129,7 +129,7 @@ pub fn parse_chart(g: &Grammar, input: &[&str]) -> Chart {
   let mut chart = Chart::new(input.len() + 1);
 
   for rule in g.rules.get(&g.start).expect("grammar missing start rules") {
-    chart.add(0, State::new(LR0::new(&rule), 0));
+    chart.add(0, State::new(LR0::new(rule), 0));
   }
 
   for k in 0..chart.len() {
@@ -189,7 +189,7 @@ fn predictor(g: &Grammar, chart: &mut Chart, k: usize, state: &State) {
   {
     chart.add(k, State::new(LR0::new(wanted_rule), k));
 
-    if g.is_nullable(&needed_symbol) {
+    if g.is_nullable(needed_symbol) {
       // automatically complete `state` early, because we know
       // it will be completable anyways, because its next_production may be produced
       // by empty input. If we don't do this, nullable rules won't be completed

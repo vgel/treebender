@@ -11,7 +11,7 @@ pub enum ProductionKind {
   Nonterminal,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Production {
   pub kind: ProductionKind,
   pub symbol: String,
@@ -47,7 +47,7 @@ impl fmt::Display for Production {
   }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Rule {
   pub symbol: String,
   pub features: NodeRef,
@@ -160,7 +160,7 @@ impl Grammar {
     while last_length != nullables.len() {
       last_length = nullables.len();
       for r in rules.values().flatten() {
-        if !nullables.contains(&r.symbol) && Self::rule_is_nullable(&nullables, &r) {
+        if !nullables.contains(&r.symbol) && Self::rule_is_nullable(&nullables, r) {
           nullables.insert(r.symbol.clone());
         }
       }

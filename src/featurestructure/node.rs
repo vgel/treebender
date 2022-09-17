@@ -42,10 +42,7 @@ impl Node {
   }
 
   fn is_top(&self) -> bool {
-    match self {
-      Self::Top => true,
-      _ => false,
-    }
+    matches!(self, Self::Top)
   }
 
   fn str(&self) -> Option<&str> {

@@ -542,7 +542,7 @@ pub use crate::utils::Err;
 
 impl Grammar {
   pub fn parse_chart(&self, input: &[&str]) -> Chart {
-    parse_chart(&self, input)
+    parse_chart(self, input)
   }
 
   pub fn parse_forest(&self, input: &[&str]) -> Forest {
@@ -581,7 +581,7 @@ impl Grammar {
 
   pub fn parse(&self, input: &[&str]) -> Vec<(SynTree<String, String>, NodeRef)> {
     let forest = self.parse_forest(input);
-    let trees = forest.trees(&self);
+    let trees = forest.trees(self);
     trees
       .into_iter()
       .filter_map(|t| Self::unify_tree(t).map(Some).unwrap_or(None))

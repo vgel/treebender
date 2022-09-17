@@ -37,7 +37,7 @@ where
 
     combinations(tail)
       .into_iter()
-      .map(|subseq| {
+      .flat_map(|subseq| {
         // prepend every element of the head to every possible subseq
         head.iter().map(move |v| {
           let mut newseq = subseq.clone();
@@ -45,7 +45,6 @@ where
           newseq
         })
       })
-      .flatten()
       .collect()
   }
 }

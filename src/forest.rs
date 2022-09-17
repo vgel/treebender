@@ -6,7 +6,7 @@ use crate::rules::{Grammar, Rule};
 use crate::syntree::{Constituent, SynTree, Word};
 use crate::utils::combinations;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ForestState {
   rule: Arc<Rule>,
   span: (usize, usize),
@@ -27,16 +27,16 @@ impl fmt::Display for ForestState {
   }
 }
 
-impl Into<Constituent<Arc<Rule>>> for &ForestState {
-  fn into(self) -> Constituent<Arc<Rule>> {
-    Constituent {
-      value: self.rule.clone(),
-      span: self.span,
+impl From<&ForestState> for Constituent<Arc<Rule>> {
+  fn from(fs: &ForestState) -> Self {
+    Self {
+      value: fs.rule.clone(),
+      span: fs.span,
     }
   }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Forest(Vec<Vec<ForestState>>);
 
 impl Forest {
@@ -113,7 +113,7 @@ impl Forest {
         .iter()
         // only consider states that are contained within the search range, and have our wanted symbol
         .filter(|s| s.span.1 <= search_end && wanted_symbol == &s.rule.symbol)
-        .map(|state| {
+        .flat_map(|state| {
           // recursively find possible sequences that start directly after this state
           // TODO: this is probably easily amenable to some dynamic programming to reduce repeated work
           self
@@ -125,7 +125,6 @@ impl Forest {
               seq
             })
         })
-        .flatten()
         .collect()
     } else {
       // similar to the nonterminal case, but we don't have to search for multiple potential states --
@@ -163,7 +162,7 @@ impl Forest {
       self
         .extend_out(g, &cons.value, 0, cons.span.0, cons.span.1)
         .into_iter()
-        .map(|children| {
+        .flat_map(|children| {
           let child_sets = children
             .into_iter()
             .map(|child| self.make_trees(g, child))
@@ -172,7 +171,6 @@ impl Forest {
             .into_iter()
             .map(|set| SynTree::Branch(cons.clone(), set))
         })
-        .flatten()
         .collect::<Vec<_>>()
     }
   }
@@ -261,15 +259,12 @@ fn test_parse_chart() {
     forest,
     Forest(vec![
       vec![
-        ForestState::new(&rule1, 0, 1),
-        ForestState::new(&rule2, 0, 2),
-        ForestState::new(&rule2, 0, 3),
+        ForestState::new(rule1, 0, 1),
+        ForestState::new(rule2, 0, 2),
+        ForestState::new(rule2, 0, 3),
       ],
-      vec![
-        ForestState::new(&rule1, 1, 2),
-        ForestState::new(&rule2, 1, 3),
-      ],
-      vec![ForestState::new(&rule1, 2, 3)],
+      vec![ForestState::new(rule1, 1, 2), ForestState::new(rule2, 1, 3),],
+      vec![ForestState::new(rule1, 2, 3)],
     ])
   );
 
