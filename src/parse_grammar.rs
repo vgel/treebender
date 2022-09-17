@@ -1,6 +1,7 @@
-use regex::Regex;
 /// Simple recursive-descent parsing of grammar files
 use std::str::FromStr;
+
+use regex::Regex;
 
 use crate::featurestructure::{Feature, NodeRef};
 use crate::rules::{Grammar, Production, Rule};
@@ -187,23 +188,21 @@ fn parse_production(s: &str) -> ParseResult<(Production, Vec<Feature>)> {
 
   if name.chars().next().unwrap().is_uppercase() {
     Ok(((Production::new_nonterminal(name.to_string()), features), s))
+  } else if !features.is_empty() {
+    Err(format!("terminal (lower-case) cannot have features: {} {}", name, s).into())
   } else {
-    if !features.is_empty() {
-      Err(format!("terminal (lower-case) cannot have features: {} {}", name, s).into())
-    } else {
-      // annotate terminals with their matching string
-      Ok((
-        (
-          Production::new_terminal(name.to_string()),
-          vec![Feature {
-            path: "word".to_string(),
-            tag: None,
-            value: NodeRef::new_str(name.to_string()),
-          }],
-        ),
-        s,
-      ))
-    }
+    // annotate terminals with their matching string
+    Ok((
+      (
+        Production::new_terminal(name.to_string()),
+        vec![Feature {
+          path: "word".to_string(),
+          tag: None,
+          value: NodeRef::new_str(name.to_string()),
+        }],
+      ),
+      s,
+    ))
   }
 }
 
