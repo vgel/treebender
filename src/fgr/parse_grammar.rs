@@ -91,25 +91,25 @@ fn needed_char(c: char, s: &str) -> ParseResult<char> {
 /// Tries to skip 1 or more \s characters and comments
 fn skip_whitespace(s: &str) -> &str {
   regex_static!(WHITESPACE_OR_COMMENT, r"\s*(//.*?\n\s*)*");
-  optional_re(&*WHITESPACE_OR_COMMENT, s).1
+  optional_re(&WHITESPACE_OR_COMMENT, s).1
 }
 
 // Tries to skip 1 or more non-newline whitespace characters
 fn skip_whitespace_nonnewline(s: &str) -> &str {
   regex_static!(WHITESPACE_NONNEWLINE, r"[\s&&[^\n]]*");
-  optional_re(&*WHITESPACE_NONNEWLINE, s).1
+  optional_re(&WHITESPACE_NONNEWLINE, s).1
 }
 
 /// Tries to parse a name made of letters, numbers, - and _
 fn parse_name(s: &str) -> ParseResult<&str> {
   regex_static!(NAME, r"[a-zA-Z0-9\-_]+");
-  needed_re(&*NAME, s).map_err(|err| format!("name: {}", err).into())
+  needed_re(&NAME, s).map_err(|err| format!("name: {}", err).into())
 }
 
 /// Tries to parse a name made of dotted segments (foo.bar.c.d)
 fn parse_dotted(s: &str) -> ParseResult<&str> {
   regex_static!(DOTTED, r"[a-zA-Z0-9\-_]+(\.[a-zA-Z0-9\-_]+)*");
-  needed_re(&*DOTTED, s).map_err(|e| format!("dotted name: {}", e).into())
+  needed_re(&DOTTED, s).map_err(|e| format!("dotted name: {}", e).into())
 }
 
 /// Parses an optional #tag
@@ -129,7 +129,7 @@ fn parse_feature_value(s: &str) -> ParseResult<(Option<String>, NodeRef)> {
   regex_static!(VALUE, r"[a-zA-Z0-9\-_\*]+");
   let (tag, s) = parse_tag(s)?;
   let s = skip_whitespace(s);
-  let (name, s) = optional_re(&*VALUE, s);
+  let (name, s) = optional_re(&VALUE, s);
   let value = if let Some(name) = name {
     if name == TOP_STR {
       NodeRef::new_top()
@@ -223,7 +223,7 @@ fn parse_rule(s: &str) -> ParseResult<Rule> {
   let ((symbol, features), s) =
     parse_nonterminal(s).map_err(|e| -> Err { format!("rule symbol: {}", e).into() })?;
   let s = skip_whitespace(s);
-  let (_, s) = needed_re(&*ARROW, s).map_err(|e| -> Err { format!("rule arrow: {}", e).into() })?;
+  let (_, s) = needed_re(&ARROW, s).map_err(|e| -> Err { format!("rule arrow: {}", e).into() })?;
 
   let mut prods_features = Vec::new();
   let mut rem = s;
