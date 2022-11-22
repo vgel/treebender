@@ -12,6 +12,50 @@ pub enum SerializedNode {
   Edged(HashMap<String, SerializedNode>),
 }
 
+impl SerializedNode {
+  pub fn as_str(&self) -> Option<&str> {
+    match self {
+      Self::Str(s) => Some(s.as_str()),
+      _ => None,
+    }
+  }
+
+  pub fn into_str(self) -> Option<String> {
+    match self {
+      Self::Str(s) => Some(s),
+      _ => None,
+    }
+  }
+
+  pub fn as_edged(&self) -> Option<&HashMap<String, SerializedNode>> {
+    match self {
+      Self::Edged(map) => Some(map),
+      _ => None,
+    }
+  }
+
+  pub fn into_edged(self) -> Option<HashMap<String, SerializedNode>> {
+    match self {
+      Self::Edged(map) => Some(map),
+      _ => None,
+    }
+  }
+
+  pub fn get_path(&self, path: &[&str]) -> Option<&SerializedNode> {
+    let mut node = self;
+    let mut path = path;
+    while !path.is_empty() {
+      node = node.as_edged()?.get(path[0])?;
+      path = &path[1..];
+    }
+    Some(node)
+  }
+
+  pub fn get_path_str(&self, path: &[&str]) -> Option<&str> {
+    self.get_path(path).and_then(Self::as_str)
+  }
+}
+
 impl From<&str> for SerializedNode {
   fn from(s: &str) -> Self {
     s.to_string().into()
