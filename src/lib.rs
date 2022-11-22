@@ -523,8 +523,8 @@ extern crate lazy_static;
 
 pub mod earley;
 pub mod featurestructure;
+pub mod fgr;
 pub mod forest;
-pub mod parse_grammar;
 pub mod rules;
 pub mod syntree;
 pub mod utils;
