@@ -61,7 +61,7 @@ mod tests {
     .unwrap();
 
     // everything is **top** so goes away
-    assert!(Option::<SerializedNode>::from(&fs1) == None);
+    assert!(Option::<SerializedNode>::from(&fs1).is_none());
 
     let gold = SerializedNode::Edged(vec![("c".into(), "foo".into())].into_iter().collect());
 

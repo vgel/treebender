@@ -89,7 +89,6 @@ impl Forest {
   /// ```
   fn extend_out(
     &self,
-    g: &Grammar,
     rule: &Rule,
     prod_idx: usize,
     search_start: usize,
@@ -117,7 +116,7 @@ impl Forest {
           // recursively find possible sequences that start directly after this state
           // TODO: this is probably easily amenable to some dynamic programming to reduce repeated work
           self
-            .extend_out(g, rule, prod_idx + 1, state.span.1, search_end)
+            .extend_out(rule, prod_idx + 1, state.span.1, search_end)
             .into_iter()
             // if there are any, prepend an uncompleted tree headed by this state onto the sequence and throw it on the pile
             .map(move |mut seq| {
@@ -136,7 +135,7 @@ impl Forest {
 
       // recursively find possible sequences, like before
       self
-        .extend_out(g, rule, prod_idx + 1, search_start + 1, search_end)
+        .extend_out(rule, prod_idx + 1, search_start + 1, search_end)
         .into_iter()
         .map(move |mut seq| {
           // prepend our new leaf to them
@@ -150,22 +149,18 @@ impl Forest {
   /// Takes a possibly-uncompleted tree, and returns all possible trees it describes.
   /// An uncompleted tree is a non-nullable constituent with 0 children. It needs to be passed
   /// into extend_out, and then glued onto
-  fn make_trees(
-    &self,
-    g: &Grammar,
-    tree: SynTree<Arc<Rule>, String>,
-  ) -> Vec<SynTree<Arc<Rule>, String>> {
+  fn make_trees(&self, tree: SynTree<Arc<Rule>, String>) -> Vec<SynTree<Arc<Rule>, String>> {
     if Self::subtree_is_complete(&tree) {
       vec![tree]
     } else {
       let (cons, _) = tree.get_branch().unwrap();
       self
-        .extend_out(g, &cons.value, 0, cons.span.0, cons.span.1)
+        .extend_out(&cons.value, 0, cons.span.0, cons.span.1)
         .into_iter()
         .flat_map(|children| {
           let child_sets = children
             .into_iter()
-            .map(|child| self.make_trees(g, child))
+            .map(|child| self.make_trees(child))
             .collect::<Vec<_>>();
           combinations(&child_sets)
             .into_iter()
@@ -189,7 +184,7 @@ impl Forest {
       root_states.fold(
         Vec::<SynTree<Arc<Rule>, String>>::new(),
         |mut prev, tree| {
-          let mut trees = self.make_trees(g, tree);
+          let mut trees = self.make_trees(tree);
           prev.append(&mut trees);
           prev
         },
