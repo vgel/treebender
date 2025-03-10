@@ -533,7 +533,7 @@ use std::fs;
 use std::path;
 use std::sync::Arc;
 
-pub use crate::earley::{parse_chart, Chart};
+pub use crate::earley::{Chart, parse_chart};
 pub use crate::featurestructure::NodeRef;
 pub use crate::forest::Forest;
 pub use crate::rules::{Grammar, Rule};

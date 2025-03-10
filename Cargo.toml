@@ -2,7 +2,7 @@
 name = "treebender"
 version = "0.1.2"
 authors = ["Theia Vogel <theia@vgel.me>"]
-edition = "2021"
+edition = "2024"
 description = "An HDPSG inspired symbolic NLP library for Rust"
 repository = "https://github.com/vgel/treebender"
 license = "MIT"
@@ -17,7 +17,7 @@ regex = "1"
 lazy_static = "1"
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = "0.5"
 
 [[bench]]
 name = "full_parse_reflexives"

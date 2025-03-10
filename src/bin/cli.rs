@@ -3,8 +3,8 @@ use std::io;
 use std::io::Write;
 use std::process;
 
-use treebender::rules::Grammar;
 use treebender::Err;
+use treebender::rules::Grammar;
 
 fn usage(prog_name: &str) -> String {
   format!(

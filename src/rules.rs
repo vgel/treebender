@@ -124,7 +124,7 @@ impl Grammar {
       rules.into_iter().fold(HashMap::new(), |mut map, rule| {
         map
           .entry(rule.symbol.clone())
-          .or_insert_with(Vec::new)
+          .or_default()
           .push(Arc::new(rule));
         map
       });

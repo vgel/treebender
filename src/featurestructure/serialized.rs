@@ -110,7 +110,7 @@ impl PartialEq for SerializedNode {
           return false;
         }
 
-        return m1.iter().all(|(k, v)| m2.get(k) == Some(v));
+        m1.iter().all(|(k, v)| m2.get(k) == Some(v))
       }
     }
   }
