@@ -108,6 +108,43 @@ impl NodeArena {
     self.alloc(Node::new_edged())
   }
 
+  /// Recursively make a copy of a node
+  pub fn clone(&mut self, n: NodeIdx) -> NodeIdx {
+    let mut seen = HashMap::new();
+    self._clone(n, &mut seen)
+  }
+
+  fn _clone(&mut self, n: NodeIdx, seen: &mut HashMap<NodeIdx, NodeIdx>) -> NodeIdx {
+    if let Some(new_idx) = seen.get(&n) {
+      return *new_idx;
+    }
+
+    // TODO this `node` clone is ugly, we need it because we're adding new nodes in here, which might move the vec,
+    // invalidating the iteration over the hashmap ref in edged. ideally we'd be using a proper arena here, so we
+    // could guarantee the node doesn't move, so we didn't need this clone. need to fix that.
+
+    // we can't dereference here because we need to preserve the DAG structure
+    let node = self.get(n).clone();
+    let new = match node {
+      Node::Top => self.alloc_top(),
+      Node::Str(s) => self.alloc_str(s),
+      Node::Edged(old_arcs) => {
+        let mut arcs = HashMap::<String, NodeIdx>::new();
+        for (label, value) in old_arcs.into_iter() {
+          arcs.insert(label, self._clone(value, seen));
+        }
+        self.alloc(Node::Edged(arcs))
+      }
+      Node::Forwarded(target) => {
+        let new = self._clone(target, seen);
+        self.alloc(Node::Forwarded(new))
+      }
+    };
+
+    seen.insert(n, new);
+    new
+  }
+
   /// Display a NodeIdx
   pub fn display(&self, idx: NodeIdx) -> NodeDisplay {
     NodeDisplay { arena: self, idx }

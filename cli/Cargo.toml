@@ -1,0 +1,8 @@
+[package]
+name = "cli"
+version = "0.2.0"
+authors = ["Theia Vogel <theia@vgel.me>"]
+
+[dependencies]
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+treebender = { path = "../" }

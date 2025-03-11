@@ -533,6 +533,8 @@ use std::fs;
 use std::path;
 use std::sync::Arc;
 
+use tracing::{debug, trace};
+
 pub use crate::earley::{Chart, parse_chart};
 pub use crate::featurestructure::{NodeArena, NodeIdx};
 pub use crate::forest::Forest;
@@ -556,7 +558,7 @@ impl Grammar {
     match tree {
       SynTree::Leaf(w) => Ok((SynTree::Leaf(w), arena.alloc_top())),
       SynTree::Branch(cons, children) => {
-        let features = cons.value.features;
+        let features = arena.clone(cons.value.features);
 
         let mut bare_children = Vec::with_capacity(children.len());
         for (idx, child) in children.into_iter().enumerate() {
@@ -565,6 +567,13 @@ impl Grammar {
 
           let to_unify =
             arena.alloc_from_edges(vec![(format!("child-{}", idx), child_features)])?;
+
+          trace!("unifying {} with child-{}", cons.value.symbol, idx);
+          trace!(
+            "{} features: {}",
+            cons.value.symbol,
+            arena.display(cons.value.features)
+          );
           arena.unify(features, to_unify)?;
         }
 
@@ -588,9 +597,11 @@ impl Grammar {
     let mut results = Vec::new();
 
     for tree in trees {
+      // TODO might be able to share arena between parse attempts
       let mut arena = self.create_parse_arena();
-      if let Ok((syn_tree, idx)) = Self::unify_tree(tree, &mut arena) {
-        results.push((syn_tree, idx, arena));
+      match Self::unify_tree(tree, &mut arena) {
+        Ok((syn_tree, idx)) => results.push((syn_tree, idx, arena)),
+        Err(e) => debug!("{e}"),
       }
     }
 
@@ -622,4 +633,16 @@ fn test_unification_blocking() {
   assert_eq!(g.parse(&["himself", "likes", "himself"]).len(), 0);
   assert_eq!(g.parse(&["she", "likes", "himself"]).len(), 0);
   assert_eq!(g.parse(&["himself", "likes", "him"]).len(), 0);
+}
+
+#[test]
+fn test_complex() {
+  let g: Grammar = std::fs::read_to_string("examples/dative-shift.fgr")
+    .unwrap()
+    .parse()
+    .unwrap();
+
+  assert_eq!(g.parse(&["i", "gave", "her", "apples"]).len(), 1);
+  assert_eq!(g.parse(&["i", "gave", "apples", "to", "her"]).len(), 1);
+  assert_eq!(g.parse(&["i", "gave", "to", "her", "apples"]).len(), 0);
 }

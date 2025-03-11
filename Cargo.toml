@@ -1,6 +1,6 @@
 [package]
 name = "treebender"
-version = "0.1.2"
+version = "0.2.0"
 authors = ["Theia Vogel <theia@vgel.me>"]
 edition = "2024"
 description = "An HDPSG inspired symbolic NLP library for Rust"
@@ -12,9 +12,14 @@ categories = ["science", "text-processing"]
 [badges]
 maintenance = { status = "experimental" }
 
+[workspace]
+resolver = "2"
+members = ["cli"]
+
 [dependencies]
 regex = "1"
 lazy_static = "1"
+tracing = "0.1.41"
 
 [dev-dependencies]
 criterion = "0.5"

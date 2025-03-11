@@ -1,10 +1,15 @@
+extern crate tracing_subscriber;
+extern crate treebender;
+
 use std::env;
 use std::io;
 use std::io::Write;
 use std::process;
 
-use treebender::Err;
+use tracing_subscriber::EnvFilter;
+
 use treebender::rules::Grammar;
+use treebender::Err;
 
 fn usage(prog_name: &str) -> String {
   format!(
@@ -79,7 +84,7 @@ impl Args {
 
     for o in iter {
       if o == "-h" || o == "--help" {
-        println!("{}", usage(&prog_name));
+        eprintln!("{}", usage(&prog_name));
         process::exit(0);
       } else if o == "-n" || o == "--no-fs" {
         print_fs = false;
@@ -112,6 +117,11 @@ fn main() -> Result<(), Err> {
       process::exit(255);
     }
   };
+
+  tracing_subscriber::fmt()
+    .with_env_filter(EnvFilter::from_default_env())
+    .with_writer(std::io::stderr)
+    .init();
 
   let g: Grammar = Grammar::read_from_file(&opts.filename)?;
 
