@@ -1,7 +1,7 @@
 mod node;
 mod serialized;
 
-pub use node::{Feature, NodeRef};
+pub use node::{Feature, NodeArena, NodeIdx};
 pub use serialized::SerializedNode;
 
 #[cfg(test)]
@@ -10,64 +10,71 @@ mod tests {
 
   #[test]
   fn test_construct_fs() {
-    let root = NodeRef::new_from_paths(vec![
+    let mut arena = NodeArena::new();
+
+    let features = vec![
       Feature {
         path: "a.b".to_string(),
         tag: Some("1".to_string()),
-        value: NodeRef::new_top(),
+        value: arena.alloc_top(),
       },
       Feature {
         path: "a.b.c".to_string(),
         tag: None,
-        value: NodeRef::new_str("foo".to_string()),
+        value: arena.alloc_str("foo".to_string()),
       },
       Feature {
         path: "a.b.d".to_string(),
         tag: None,
-        value: NodeRef::new_str("bar".to_string()),
+        value: arena.alloc_str("bar".to_string()),
       },
       Feature {
         path: "e".to_string(),
         tag: Some("1".to_string()),
-        value: NodeRef::new_top(),
+        value: arena.alloc_top(),
       },
-    ])
-    .unwrap();
+    ];
 
-    println!("{}", root);
+    let root = arena.alloc_from_features(features).unwrap();
+
+    println!("{}", arena.display(root));
   }
 
   #[test]
   fn test_unify_tags() {
-    let fs1 = NodeRef::new_from_paths(vec![
+    let mut arena = NodeArena::new();
+
+    let features1 = vec![
       Feature {
         path: "a.b".to_string(),
         tag: Some("1".to_string()),
-        value: NodeRef::new_top(),
+        value: arena.alloc_top(),
       },
       Feature {
         path: "c".to_string(),
         tag: Some("1".to_string()),
-        value: NodeRef::new_top(),
+        value: arena.alloc_top(),
       },
-    ])
-    .unwrap();
+    ];
 
-    let fs2 = NodeRef::new_from_paths(vec![Feature {
+    let fs1 = arena.alloc_from_features(features1).unwrap();
+
+    let features2 = vec![Feature {
       path: "c".to_string(),
       tag: None,
-      value: NodeRef::new_str("foo".to_string()),
-    }])
-    .unwrap();
+      value: arena.alloc_str("foo".to_string()),
+    }];
+
+    let fs2 = arena.alloc_from_features(features2).unwrap();
 
     // everything is **top** so goes away
-    assert!(Option::<SerializedNode>::from(&fs1).is_none());
+    assert!(SerializedNode::from_node(&arena, fs1).is_none());
 
     let gold = SerializedNode::Edged(vec![("c".into(), "foo".into())].into_iter().collect());
 
-    assert!(Option::<SerializedNode>::from(&fs2) == Some(gold));
+    assert!(SerializedNode::from_node(&arena, fs2) == Some(gold));
 
-    NodeRef::unify(fs1.clone(), fs2.clone()).unwrap();
+    arena.unify(fs1, fs2).unwrap();
 
     let gold = SerializedNode::Edged(
       vec![
@@ -81,7 +88,7 @@ mod tests {
       .collect(),
     );
 
-    assert!(Option::<SerializedNode>::from(&fs1) == Some(gold.clone()));
-    assert!(Option::<SerializedNode>::from(&fs2) == Some(gold));
+    assert!(SerializedNode::from_node(&arena, fs1) == Some(gold.clone()));
+    assert!(SerializedNode::from_node(&arena, fs2) == Some(gold));
   }
 }

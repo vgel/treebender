@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 use std::fmt;
-use std::hash::{Hash, Hasher};
-use std::sync::RwLockReadGuard;
-use std::sync::RwLockWriteGuard;
-use std::sync::{Arc, RwLock};
 
 use crate::utils::Err;
 
-/// Unpacked representation of a feature, that NodeRef::new_from_paths can turn into a Node
+/// Index type for the node arena
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct NodeIdx(pub u32);
+
+/// Unpacked representation of a feature, that NodeArena::new_from_paths can turn into a Node
 #[derive(Debug)]
 pub struct Feature {
   /// Dotted path where each segment will be a node: "a.b.c" -> [a: [b: [c: ...]]]
@@ -15,21 +15,21 @@ pub struct Feature {
   /// Unique string that will link features into a reentrant node, or None
   pub tag: Option<String>,
   /// What will end up at `path`. Will be unified with any other feature values with the same tag.
-  pub value: NodeRef,
+  pub value: NodeIdx,
 }
 
-/// A raw node. Shouldn't be used, should always be wrapped in a NodeRef.
-#[derive(Debug)]
-pub(crate) enum Node {
+/// A node in the feature structure graph
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Node {
   /// Top can unify with anything
   Top,
   /// A string-valued feature, such as "nom" in [case: nom]. Unifies with eq. Str nodes
   Str(String),
-  /// An arc-containing node with arcs to other NodeRefs
-  Edged(HashMap<String, NodeRef>),
+  /// An arc-containing node with arcs to other NodeIdxs
+  Edged(HashMap<String, NodeIdx>),
   /// A node that has been forwarded to another node through unification.
-  /// Before using a node, it should be dereferenced with Node::dereference to resolve its forward
-  Forwarded(NodeRef),
+  /// Before using a node, it should be dereferenced to resolve its forward
+  Forwarded(NodeIdx),
 }
 
 impl Node {
@@ -56,14 +56,14 @@ impl Node {
     self.str().is_some()
   }
 
-  fn edged(&self) -> Option<&HashMap<String, NodeRef>> {
+  fn edged(&self) -> Option<&HashMap<String, NodeIdx>> {
     match self {
       Self::Edged(v) => Some(v),
       _ => None,
     }
   }
 
-  fn edged_mut(&mut self) -> Option<&mut HashMap<String, NodeRef>> {
+  fn edged_mut(&mut self) -> Option<&mut HashMap<String, NodeIdx>> {
     match self {
       Self::Edged(v) => Some(v),
       _ => None,
@@ -73,287 +73,290 @@ impl Node {
   fn is_edged(&self) -> bool {
     self.edged().is_some()
   }
-
-  #[allow(clippy::map_entry)]
-  fn push_edge(&mut self, label: String, target: NodeRef) -> Result<(), Err> {
-    if self.is_top() {
-      *self = Self::new_edged();
-    }
-
-    if let Some(arcs) = self.edged_mut() {
-      if arcs.contains_key(&label) {
-        let existing = arcs[&label].clone();
-        NodeRef::unify(existing, target)
-      } else {
-        arcs.insert(label, target);
-        Ok(())
-      }
-    } else {
-      Err(format!("unification failure: {}", label).into())
-    }
-  }
 }
 
-/// An interior-ly mutable ref to a Node.
-#[derive(Debug)]
-pub struct NodeRef(Arc<RwLock<Node>>);
+/// An arena that stores all nodes and provides methods to operate on them
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct NodeArena {
+  nodes: Vec<Node>,
+}
 
-impl NodeRef {
-  pub fn new_top() -> Self {
-    Node::Top.into()
+impl NodeArena {
+  pub fn new() -> Self {
+    Default::default()
   }
 
-  pub fn new_str(s: String) -> Self {
-    Node::new_str(s).into()
+  pub fn alloc(&mut self, node: Node) -> NodeIdx {
+    let idx = self.nodes.len() as u32;
+    self.nodes.push(node);
+    NodeIdx(idx)
   }
 
-  /// Creates a NodeRef from a list of (name, noderef) features. Names CANNOT be dotted!
-  pub fn new_with_edges<I>(edges: I) -> Result<Self, Err>
+  pub fn replace(&mut self, idx: NodeIdx, node: Node) -> Node {
+    std::mem::replace(&mut self.nodes[idx.0 as usize], node)
+  }
+
+  pub fn alloc_top(&mut self) -> NodeIdx {
+    self.alloc(Node::Top)
+  }
+
+  pub fn alloc_str(&mut self, s: String) -> NodeIdx {
+    self.alloc(Node::new_str(s))
+  }
+
+  pub fn alloc_edged(&mut self) -> NodeIdx {
+    self.alloc(Node::new_edged())
+  }
+
+  /// Display a NodeIdx
+  pub fn display(&self, idx: NodeIdx) -> NodeDisplay {
+    NodeDisplay { arena: self, idx }
+  }
+
+  /// Creates a Node from a list of (name, noderef) features. Names CANNOT be dotted!
+  pub fn alloc_from_edges<I>(&mut self, edges: I) -> Result<NodeIdx, Err>
   where
-    I: IntoIterator<Item = (String, NodeRef)>,
+    I: IntoIterator<Item = (String, NodeIdx)>,
   {
-    let mut n = Node::new_edged();
+    let node = self.alloc_edged();
+
     for (label, target) in edges {
       assert!(
         !label.contains('.'),
         "new_with_edges cannot take dotted paths!"
       );
 
-      n.push_edge(label, target)?;
+      self.push_edge(node, label, target)?; // error if unification failure
     }
-    Ok(n.into())
+
+    Ok(node)
   }
 
-  // List of (name, value, tag) triples
-  pub fn new_from_paths<I>(paths: I) -> Result<NodeRef, Err>
+  pub fn alloc_from_features<I>(&mut self, paths: I) -> Result<NodeIdx, Err>
   where
     I: IntoIterator<Item = Feature>,
   {
-    let this: NodeRef = Node::new_edged().into();
+    let root = self.alloc_edged();
 
-    let mut tags: HashMap<String, NodeRef> = HashMap::new();
+    let mut tags: HashMap<String, NodeIdx> = HashMap::new();
     for Feature { value, tag, path } in paths {
       if let Some(tag) = tag {
         if tags.contains_key(&tag) {
-          let tagged = tags.get(&tag).unwrap();
-          NodeRef::unify(value.clone(), tagged.clone())?;
+          let tagged = tags[&tag];
+          self.unify(value, tagged)?;
         } else {
-          tags.insert(tag.to_string(), value.clone());
+          tags.insert(tag.to_string(), value);
         }
       }
 
-      let mut current = this.clone();
+      let mut current = root;
       let mut parts = path.split('.').peekable();
       loop {
         let next = parts.next().expect("shouldn't be empty b/c path.len() > 0");
         let is_last = parts.peek().is_none();
 
         if is_last {
-          current
-            .borrow_mut()
-            .push_edge(next.to_string(), value.clone())?;
+          self.push_edge(current, next.to_string(), value)?;
           break;
         } else {
-          let new: NodeRef = Node::new_edged().into();
-          current
-            .borrow_mut()
-            .push_edge(next.to_string(), new.clone())?;
+          let new = self.alloc_edged();
+          self.push_edge(current, next.to_string(), new)?;
           current = new;
         }
       }
     }
 
-    Ok(this)
+    Ok(root)
   }
 
-  pub fn deep_clone(&self) -> NodeRef {
-    let mut map = HashMap::new();
-    self._deep_clone(&mut map);
-    map.get(self).unwrap().clone()
+  /// Get an idx. Assumes valid, panics on OOB
+  pub fn get(&self, idx: NodeIdx) -> &Node {
+    self.nodes.get(idx.0 as usize).expect("Invalid NodeIdx")
   }
 
-  pub fn dereference(self: NodeRef) -> NodeRef {
-    if let Node::Forwarded(r) = &*self.borrow() {
-      return Self::dereference(r.clone());
+  /// Mutably get an idx. Assumes valid, panics on OOB
+  pub fn get_mut(&mut self, idx: NodeIdx) -> &mut Node {
+    self.nodes.get_mut(idx.0 as usize).expect("Invalid NodeIdx")
+  }
+
+  pub fn forward_to(&mut self, target: NodeIdx, to: NodeIdx) {
+    self.nodes[target.0 as usize] = Node::Forwarded(to);
+  }
+
+  pub fn is_top(&self, n: NodeIdx) -> bool {
+    self.get(n).is_top()
+  }
+
+  pub fn is_str(&self, n: NodeIdx) -> bool {
+    self.get(n).is_str()
+  }
+
+  pub fn is_edged(&self, n: NodeIdx) -> bool {
+    self.get(n).is_edged()
+  }
+
+  fn str(&self, n: NodeIdx) -> Option<&str> {
+    self.get(n).str()
+  }
+
+  fn edged(&self, n: NodeIdx) -> Option<&HashMap<String, NodeIdx>> {
+    self.get(n).edged()
+  }
+
+  fn edged_mut(&mut self, n: NodeIdx) -> Option<&mut HashMap<String, NodeIdx>> {
+    self.get_mut(n).edged_mut()
+  }
+
+  #[allow(clippy::map_entry)]
+  fn push_edge(&mut self, parent: NodeIdx, label: String, target: NodeIdx) -> Result<(), Err> {
+    let node = self.get_mut(parent);
+
+    if node.is_top() {
+      *node = Node::new_edged();
     }
-    self
+
+    if let Some(arcs) = node.edged_mut() {
+      if arcs.contains_key(&label) {
+        let existing = arcs[&label];
+        self.unify(existing, target)?;
+      } else {
+        arcs.insert(label, target);
+      }
+      return Ok(());
+    }
+
+    Err(format!("unification failure: {}", label).into())
   }
 
-  /// Unify two feature structures. Both will be mutated. Use deep_clone() if one needs to be preserved.
-  pub fn unify(n1: NodeRef, n2: NodeRef) -> Result<(), Err> {
-    let n1 = n1.dereference();
-    let n2 = n2.dereference();
+  pub fn dereference(&self, mut idx: NodeIdx) -> NodeIdx {
+    while let Node::Forwarded(r) = self.get(idx) {
+      idx = *r;
+    }
+    idx
+  }
 
-    // quick check reference equality if the og nodes were forwarded to each other
+  /// Unify two feature structures within this arena. Both may be mutated.
+  pub fn unify(&mut self, n1: NodeIdx, n2: NodeIdx) -> Result<(), Err> {
+    let n1 = self.dereference(n1);
+    let n2 = self.dereference(n2);
+
+    // if same node, already unified
     if n1 == n2 {
       return Ok(());
     }
 
-    // if either is top forward to the other one w/o checking
-    if n1.borrow().is_top() {
-      n1.replace(Node::Forwarded(n2));
+    // If either is top, forward to the other
+    if self.is_top(n1) {
+      self.forward_to(n1, n2);
       return Ok(());
-    } else if n2.borrow().is_top() {
-      n2.replace(Node::Forwarded(n1));
+    } else if self.is_top(n2) {
+      self.forward_to(n2, n1);
       return Ok(());
     }
 
     // try to unify string values
-    if n1.borrow().is_str() && n2.borrow().is_str() {
-      let strs_equal = {
-        let n1 = n1.borrow();
-        let n2 = n2.borrow();
-        n1.str().unwrap() == n2.str().unwrap()
-      };
-      if strs_equal {
-        n1.replace(Node::Forwarded(n2));
+    if self.is_str(n1) && self.is_str(n2) {
+      let n1_str = self.str(n1).unwrap();
+      let n2_str = self.str(n2).unwrap();
+
+      if n1_str == n2_str {
+        self.forward_to(n1, n2);
         return Ok(());
       } else {
-        return Err(
-          format!(
-            "unification failure: {} & {}",
-            n1.borrow().str().unwrap(),
-            n2.borrow().str().unwrap()
-          )
-          .into(),
-        );
+        return Err(format!("unification failure: {n1_str} & {n2_str}").into());
       }
     }
 
-    if n1.borrow().is_edged() && n2.borrow().is_edged() {
-      let n1 = n1.replace(Node::Forwarded(n2.clone()));
-      let n2 = &mut *n2.borrow_mut();
-
+    // if both are edged, unify their contents
+    if self.is_edged(n1) && self.is_edged(n2) {
+      let n1 = self.replace(n1, Node::Forwarded(n2));
       let n1arcs = n1.edged().unwrap();
-      let n2arcs = n2.edged_mut().unwrap();
 
       for (label, value) in n1arcs.iter() {
-        if n2arcs.contains_key(label) {
+        if self.edged(n2).unwrap().contains_key(label) {
           // shared arc
-          let other = n2arcs.get(label).unwrap();
-          Self::unify(value.clone(), other.clone())?;
+          let other = self.edged(n2).unwrap().get(label).unwrap();
+          self.unify(*value, *other)?;
         } else {
           // complement arc
-          n2arcs.insert(label.clone(), value.clone());
+          self.edged_mut(n2).unwrap().insert(label.clone(), *value);
         }
       }
 
       return Ok(());
     }
 
-    Err(format!("unification failure: {:#?} & {:#?}", n1, n2).into())
+    Err(
+      format!(
+        "unification failure: {:?} & {:?}",
+        self.get(n1),
+        self.get(n2)
+      )
+      .into(),
+    )
   }
 }
 
-impl NodeRef {
-  pub(crate) fn new(n: Node) -> Self {
-    Self(Arc::new(RwLock::new(n)))
-  }
-
-  pub(crate) fn borrow(&self) -> RwLockReadGuard<Node> {
-    self.0.read().expect("NodeRef lock poisoned!")
-  }
-
-  fn borrow_mut(&self) -> RwLockWriteGuard<Node> {
-    self.0.write().expect("NodeRef lock poisoned!")
-  }
-
-  fn replace(&self, n: Node) -> Node {
-    let mut write = self.borrow_mut();
-    std::mem::replace(&mut *write, n)
-  }
-
-  fn _deep_clone(&self, seen: &mut HashMap<NodeRef, NodeRef>) -> NodeRef {
-    if seen.contains_key(self) {
-      return seen.get(self).unwrap().clone();
-    }
-
-    let n = self.borrow();
-    let cloned = match &*n {
-      Node::Forwarded(n1) => {
-        let n1 = n1._deep_clone(seen);
-        Self::new(Node::Forwarded(n1))
-      }
-      Node::Top => Self::new_top(),
-      Node::Str(s) => Self::new_str(s.to_string()),
-      Node::Edged(edges) => Self::new(Node::Edged(
-        edges
-          .iter()
-          .map(|(k, v)| (k.clone(), v._deep_clone(seen)))
-          .collect(),
-      )),
-    };
-    seen.insert(self.clone(), cloned.clone());
-    cloned
-  }
+/// Helper struct for displaying a node
+#[derive(Clone)]
+pub struct NodeDisplay<'a> {
+  pub arena: &'a NodeArena,
+  pub idx: NodeIdx,
 }
 
-impl Clone for NodeRef {
-  /// Clones the ***rc*** of this NodeRef. Use deep_clone to clone the actual feature structure.
-  fn clone(&self) -> Self {
-    Self(self.0.clone())
-  }
-}
-
-impl PartialEq for NodeRef {
-  /// Compares NodeRefs via pointer equality. Does not dereference forwarding chains.
-  fn eq(&self, other: &Self) -> bool {
-    Arc::ptr_eq(&self.0, &other.0)
-  }
-}
-
-impl Eq for NodeRef {}
-
-impl Hash for NodeRef {
-  /// Hashes NodeRefs via pointer equality. Does not dereference forwarding chains.
-  fn hash<H: Hasher>(&self, hasher: &mut H) {
-    let ptr = Arc::as_ptr(&self.0);
-    ptr.hash(hasher)
-  }
-}
-
-impl From<Node> for NodeRef {
-  fn from(node: Node) -> Self {
-    Self::new(node)
+impl fmt::Display for NodeDisplay<'_> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    let mut counts = HashMap::new();
+    count_in_pointers(self, &mut counts);
+    let mut has_printed = HashMap::new();
+    format_node(self, &counts, &mut has_printed, 0, f)
   }
 }
 
 // for fmt::Display impl
-fn count_in_pointers(nref: NodeRef, seen: &mut HashMap<NodeRef, usize>) {
-  let nref = nref.dereference();
+#[allow(clippy::map_entry)]
+fn count_in_pointers(n: &NodeDisplay, seen: &mut HashMap<NodeIdx, usize>) {
+  let nref = n.arena.dereference(n.idx);
   if seen.contains_key(&nref) {
     seen.entry(nref).and_modify(|cnt| *cnt += 1);
   } else {
-    seen.insert(nref.clone(), 1);
-    if let Some(arcs) = nref.borrow().edged() {
+    seen.insert(nref, 1);
+    if let Some(arcs) = n.arena.edged(nref) {
       for value in arcs.values() {
-        count_in_pointers(value.clone(), seen);
+        count_in_pointers(
+          &NodeDisplay {
+            arena: n.arena,
+            idx: *value,
+          },
+          seen,
+        );
       }
     }
   }
 }
 
 // for fmt::Display impl
-fn format_noderef(
-  self_: NodeRef,
-  counts: &HashMap<NodeRef, usize>,
-  has_printed: &mut HashMap<NodeRef, usize>,
+fn format_node(
+  nd: &NodeDisplay,
+  counts: &HashMap<NodeIdx, usize>,
+  has_printed: &mut HashMap<NodeIdx, usize>,
   indent: usize,
   f: &mut fmt::Formatter<'_>,
 ) -> fmt::Result {
-  let self_ = self_.dereference();
+  let arena = nd.arena;
+  let idx = arena.dereference(nd.idx);
 
-  if counts[&self_] > 1 && has_printed.contains_key(&self_) {
-    return write!(f, "#{}", has_printed[&self_]);
+  if counts[&idx] > 1 && has_printed.contains_key(&idx) {
+    return write!(f, "#{}", has_printed[&idx]);
   }
 
-  if counts[&self_] > 1 {
+  if counts[&idx] > 1 {
     let id = has_printed.len();
-    has_printed.insert(self_.clone(), id);
+    has_printed.insert(idx, id);
     write!(f, "#{} ", id)?;
   }
 
-  let r = &*self_.borrow();
+  let r = nd.arena.get(idx);
   match r {
     Node::Top => write!(f, "**top**"),
     Node::Str(s) => write!(f, "{}", s),
@@ -363,27 +366,30 @@ fn format_noderef(
       } else if arcs.len() == 1 {
         let (label, value) = arcs.iter().next().unwrap();
         write!(f, "[ {}: ", label)?;
-        format_noderef(value.clone(), counts, has_printed, 0, f)?;
+        format_node(
+          &NodeDisplay { arena, idx: *value },
+          counts,
+          has_printed,
+          0,
+          f,
+        )?;
         write!(f, " ]")
       } else {
         writeln!(f, "[")?;
         for (label, value) in arcs.iter() {
           write!(f, "{:indent$}{}: ", "", label, indent = indent + 2)?;
-          format_noderef(value.clone(), counts, has_printed, indent + 2, f)?;
+          format_node(
+            &NodeDisplay { arena, idx: *value },
+            counts,
+            has_printed,
+            indent + 2,
+            f,
+          )?;
           writeln!(f)?;
         }
         write!(f, "{:indent$}]", "", indent = indent)
       }
     }
     Node::Forwarded(_) => panic!("unexpected forward"),
-  }
-}
-
-impl fmt::Display for NodeRef {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    let mut counts = HashMap::new();
-    count_in_pointers(self.clone(), &mut counts);
-    let mut has_printed = HashMap::new();
-    format_noderef(self.clone(), &counts, &mut has_printed, 0, f)
   }
 }

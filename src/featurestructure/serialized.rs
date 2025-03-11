@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::node::{Node, NodeRef};
+use super::node::{Node, NodeArena, NodeIdx};
 
 /// A noderef that's been serialized into a tree structure. Nodes with multiple
 /// in-pointers are duplicated.
@@ -54,6 +54,30 @@ impl SerializedNode {
   pub fn get_path_str(&self, path: &[&str]) -> Option<&str> {
     self.get_path(path).and_then(Self::as_str)
   }
+
+  /// Create a SerializedNode from a NodeArena and NodeIdx
+  pub fn from_node(arena: &NodeArena, idx: NodeIdx) -> Option<Self> {
+    let idx = arena.dereference(idx);
+    match arena.get(idx) {
+      Node::Forwarded(_) => panic!("unexpected forward after dereference"),
+      Node::Top => None,
+      Node::Str(s) => Some(SerializedNode::Str(s.to_string())),
+      Node::Edged(edges) => {
+        let mut map: HashMap<String, SerializedNode> = HashMap::new();
+        for (k, v) in edges.iter() {
+          let value = Self::from_node(arena, *v);
+          if let Some(value) = value {
+            map.insert(k.to_string(), value);
+          }
+        }
+        if map.is_empty() {
+          None
+        } else {
+          Some(SerializedNode::Edged(map))
+        }
+      }
+    }
+  }
 }
 
 impl From<&str> for SerializedNode {
@@ -71,31 +95,6 @@ impl From<String> for SerializedNode {
 impl From<HashMap<String, SerializedNode>> for SerializedNode {
   fn from(hm: HashMap<String, SerializedNode>) -> Self {
     Self::Edged(hm)
-  }
-}
-
-impl From<&NodeRef> for Option<SerializedNode> {
-  fn from(nr: &NodeRef) -> Self {
-    let n = nr.borrow();
-    match &*n {
-      Node::Forwarded(n1) => n1.into(),
-      Node::Top => None,
-      Node::Str(s) => Some(SerializedNode::Str(s.to_string())),
-      Node::Edged(edges) => {
-        let mut map: HashMap<String, SerializedNode> = HashMap::new();
-        for (k, v) in edges.iter() {
-          let value = v.into();
-          if let Some(value) = value {
-            map.insert(k.to_string(), value);
-          }
-        }
-        if map.is_empty() {
-          None
-        } else {
-          Some(SerializedNode::Edged(map))
-        }
-      }
-    }
   }
 }
 

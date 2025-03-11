@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::sync::Arc;
 
-use crate::featurestructure::NodeRef;
+use crate::featurestructure::{NodeArena, NodeIdx};
 use crate::utils::Err;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -50,7 +50,7 @@ impl fmt::Display for Production {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Rule {
   pub symbol: String,
-  pub features: NodeRef,
+  pub features: NodeIdx,
   pub productions: Vec<Production>,
 }
 
@@ -66,7 +66,8 @@ impl Rule {
 
 impl std::fmt::Display for Rule {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}{} ->", self.symbol, self.features)?;
+    // Note: can't display features here without an arena reference
+    write!(f, "{} ->", self.symbol)?;
     for p in self.productions.iter() {
       write!(f, " {}", p)?;
     }
@@ -78,6 +79,7 @@ impl std::fmt::Display for Rule {
 pub struct Grammar {
   pub start: String,
   pub rules: HashMap<String, Vec<Arc<Rule>>>,
+  pub arena: NodeArena,
   nullables: HashSet<String>,
   nonterminals: HashSet<String>,
 }
@@ -106,7 +108,7 @@ impl std::fmt::Display for Grammar {
 }
 
 impl Grammar {
-  pub fn new(rules: Vec<Rule>) -> Result<Self, Err> {
+  pub fn new(rules: Vec<Rule>, arena: NodeArena) -> Result<Self, Err> {
     assert!(!rules.is_empty());
 
     let nonterminals: HashSet<String> = rules.iter().map(|r| r.symbol.clone()).collect();
@@ -134,9 +136,15 @@ impl Grammar {
     Ok(Self {
       start,
       rules,
+      arena,
       nonterminals,
       nullables,
     })
+  }
+
+  // Create a fresh arena for parsing, with a clone of the grammar's arena
+  pub fn create_parse_arena(&self) -> NodeArena {
+    self.arena.clone()
   }
 
   pub fn is_nullable(&self, s: &str) -> bool {
@@ -199,8 +207,8 @@ fn test_parse_grammar() {
   assert_eq!(g.rules.get("TV").unwrap().len(), 1);
   assert_eq!(g.rules.get("CV").unwrap().len(), 1);
   assert_eq!(g.rules.get("Comp").unwrap().len(), 1);
-  assert!(g.rules.get("that").is_none());
-  assert!(g.rules.get("mary").is_none());
+  assert!(!g.rules.contains_key("that"));
+  assert!(!g.rules.contains_key("mary"));
 }
 
 #[test]

@@ -534,7 +534,7 @@ use std::path;
 use std::sync::Arc;
 
 pub use crate::earley::{Chart, parse_chart};
-pub use crate::featurestructure::NodeRef;
+pub use crate::featurestructure::{NodeArena, NodeIdx};
 pub use crate::forest::Forest;
 pub use crate::rules::{Grammar, Rule};
 pub use crate::syntree::{Constituent, SynTree};
@@ -551,19 +551,21 @@ impl Grammar {
 
   pub fn unify_tree(
     tree: SynTree<Arc<Rule>, String>,
-  ) -> Result<(SynTree<String, String>, NodeRef), Err> {
+    arena: &mut NodeArena,
+  ) -> Result<(SynTree<String, String>, NodeIdx), Err> {
     match tree {
-      SynTree::Leaf(w) => Ok((SynTree::Leaf(w), NodeRef::new_top())),
+      SynTree::Leaf(w) => Ok((SynTree::Leaf(w), arena.alloc_top())),
       SynTree::Branch(cons, children) => {
-        let features = cons.value.features.deep_clone();
+        let features = cons.value.features;
 
         let mut bare_children = Vec::with_capacity(children.len());
         for (idx, child) in children.into_iter().enumerate() {
-          let (child_tree, child_features) = Self::unify_tree(child)?;
+          let (child_tree, child_features) = Self::unify_tree(child, arena)?;
           bare_children.push(child_tree);
 
-          let to_unify = NodeRef::new_with_edges(vec![(format!("child-{}", idx), child_features)])?;
-          NodeRef::unify(features.clone(), to_unify)?;
+          let to_unify =
+            arena.alloc_from_edges(vec![(format!("child-{}", idx), child_features)])?;
+          arena.unify(features, to_unify)?;
         }
 
         let bare_self = SynTree::Branch(
@@ -579,13 +581,20 @@ impl Grammar {
     }
   }
 
-  pub fn parse(&self, input: &[&str]) -> Vec<(SynTree<String, String>, NodeRef)> {
+  pub fn parse(&self, input: &[&str]) -> Vec<(SynTree<String, String>, NodeIdx, NodeArena)> {
     let forest = self.parse_forest(input);
     let trees = forest.trees(self);
-    trees
-      .into_iter()
-      .filter_map(|t| Self::unify_tree(t).map(Some).unwrap_or(None))
-      .collect::<Vec<_>>()
+
+    let mut results = Vec::new();
+
+    for tree in trees {
+      let mut arena = self.create_parse_arena();
+      if let Ok((syn_tree, idx)) = Self::unify_tree(tree, &mut arena) {
+        results.push((syn_tree, idx, arena));
+      }
+    }
+
+    results
   }
 
   pub fn read_from_file<P: AsRef<path::Path>>(path: P) -> Result<Self, Err> {

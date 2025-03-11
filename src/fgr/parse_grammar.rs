@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use regex::Regex;
 
-use crate::featurestructure::{Feature, NodeRef};
+use crate::featurestructure::{Feature, NodeArena, NodeIdx};
 use crate::rules::{Grammar, Production, Rule};
 use crate::utils::Err;
 
@@ -17,13 +17,14 @@ impl FromStr for Grammar {
   /// Parses a grammar from a string. Assumes the first rule's symbol
   /// is the start symbol.
   fn from_str(s: &str) -> Result<Self, Self::Err> {
-    let (rules, s) = parse_rules(s)?;
+    let mut arena = NodeArena::new();
+    let (rules, s) = parse_rules(s, &mut arena)?;
     assert!(s.is_empty());
 
     if rules.is_empty() {
       Err("empty ruleset".into())
     } else {
-      Self::new(rules)
+      Self::new(rules, arena)
     }
   }
 }
@@ -125,31 +126,34 @@ fn parse_tag(s: &str) -> ParseResult<Option<String>> {
 }
 
 /// Parses a value with an optional tag: #tag value
-fn parse_feature_value(s: &str) -> ParseResult<(Option<String>, NodeRef)> {
+fn parse_feature_value<'a>(
+  s: &'a str,
+  arena: &mut NodeArena,
+) -> ParseResult<'a, (Option<String>, NodeIdx)> {
   regex_static!(VALUE, r"[a-zA-Z0-9\-_\*]+");
   let (tag, s) = parse_tag(s)?;
   let s = skip_whitespace(s);
   let (name, s) = optional_re(&VALUE, s);
   let value = if let Some(name) = name {
     if name == TOP_STR {
-      NodeRef::new_top()
+      arena.alloc_top()
     } else {
-      NodeRef::new_str(name.to_string())
+      arena.alloc_str(name.to_string())
     }
   } else if tag.is_some() {
-    NodeRef::new_top()
+    arena.alloc_top()
   } else {
     return Err(format!("feature needs tag or value at {}", s).into());
   };
   Ok(((tag, value), s))
 }
 
-fn parse_feature(s: &str) -> ParseResult<Feature> {
+fn parse_feature<'a>(s: &'a str, arena: &mut NodeArena) -> ParseResult<'a, Feature> {
   let (name, s) = parse_dotted(s).map_err(|e| format!("feature name: {}", e))?;
   let s = skip_whitespace(s);
   let (_, s) = needed_char(':', s)?;
   let s = skip_whitespace(s);
-  let (value, s) = parse_feature_value(s).map_err(|e| format!("feature value: {}", e))?;
+  let (value, s) = parse_feature_value(s, arena).map_err(|e| format!("feature value: {}", e))?;
   let s = skip_whitespace(s);
   let (_, s) = optional_char(',', s);
 
@@ -163,7 +167,7 @@ fn parse_feature(s: &str) -> ParseResult<Feature> {
   ))
 }
 
-fn parse_featurestructure(s: &str) -> ParseResult<Vec<Feature>> {
+fn parse_featurestructure<'a>(s: &'a str, arena: &mut NodeArena) -> ParseResult<'a, Vec<Feature>> {
   let mut pairs = Vec::new();
   let mut rem = needed_char('[', s)?.1;
   loop {
@@ -171,17 +175,20 @@ fn parse_featurestructure(s: &str) -> ParseResult<Vec<Feature>> {
     if let (Some(_), rem) = optional_char(']', rem) {
       return Ok((pairs, rem));
     }
-    let (feature, s) = parse_feature(rem)?;
+    let (feature, s) = parse_feature(rem, arena)?;
     pairs.push(feature);
     rem = s;
   }
 }
 
-fn parse_production(s: &str) -> ParseResult<(Production, Vec<Feature>)> {
+fn parse_production<'a>(
+  s: &'a str,
+  arena: &mut NodeArena,
+) -> ParseResult<'a, (Production, Vec<Feature>)> {
   let (name, s) = parse_name(s).map_err(|e| -> Err { format!("symbol: {}", e).into() })?;
   let s = skip_whitespace_nonnewline(s);
   let (features, s) = if s.starts_with('[') {
-    parse_featurestructure(s)?
+    parse_featurestructure(s, arena)?
   } else {
     (Vec::new(), s)
   };
@@ -198,7 +205,7 @@ fn parse_production(s: &str) -> ParseResult<(Production, Vec<Feature>)> {
         vec![Feature {
           path: "word".to_string(),
           tag: None,
-          value: NodeRef::new_str(name.to_string()),
+          value: arena.alloc_str(name.to_string()),
         }],
       ),
       s,
@@ -206,8 +213,11 @@ fn parse_production(s: &str) -> ParseResult<(Production, Vec<Feature>)> {
   }
 }
 
-fn parse_nonterminal(s: &str) -> ParseResult<(String, Vec<Feature>)> {
-  let ((prod, features), s) = parse_production(s)?;
+fn parse_nonterminal<'a>(
+  s: &'a str,
+  arena: &mut NodeArena,
+) -> ParseResult<'a, (String, Vec<Feature>)> {
+  let ((prod, features), s) = parse_production(s, arena)?;
   if prod.is_nonterminal() {
     Ok(((prod.symbol, features), s))
   } else {
@@ -216,12 +226,12 @@ fn parse_nonterminal(s: &str) -> ParseResult<(String, Vec<Feature>)> {
 }
 
 /// Symbol, productions, terminated by final newline
-fn parse_rule(s: &str) -> ParseResult<Rule> {
+fn parse_rule<'a>(s: &'a str, arena: &mut NodeArena) -> ParseResult<'a, Rule> {
   #![allow(clippy::trivial_regex)]
   regex_static!(ARROW, "->");
 
   let ((symbol, features), s) =
-    parse_nonterminal(s).map_err(|e| -> Err { format!("rule symbol: {}", e).into() })?;
+    parse_nonterminal(s, arena).map_err(|e| -> Err { format!("rule symbol: {}", e).into() })?;
   let s = skip_whitespace(s);
   let (_, s) = needed_re(&ARROW, s).map_err(|e| -> Err { format!("rule arrow: {}", e).into() })?;
 
@@ -237,14 +247,14 @@ fn parse_rule(s: &str) -> ParseResult<Rule> {
       break;
     }
 
-    let (prod, s) =
-      parse_production(rem).map_err(|e| -> Err { format!("rule production: {}", e).into() })?;
+    let (prod, s) = parse_production(rem, arena)
+      .map_err(|e| -> Err { format!("rule production: {}", e).into() })?;
     prods_features.push(prod);
     rem = s;
   }
 
   let (features, productions) = adopt_child_features(features, prods_features);
-  let features = NodeRef::new_from_paths(features)?;
+  let features = arena.alloc_from_features(features)?;
 
   Ok((
     Rule {
@@ -284,7 +294,7 @@ fn adopt_child_features(
   (rule_features, productions)
 }
 
-fn parse_rules(s: &str) -> ParseResult<Vec<Rule>> {
+fn parse_rules<'a>(s: &'a str, arena: &mut NodeArena) -> ParseResult<'a, Vec<Rule>> {
   let mut rules = Vec::new();
   let mut rem = s;
   loop {
@@ -292,7 +302,7 @@ fn parse_rules(s: &str) -> ParseResult<Vec<Rule>> {
     if rem.is_empty() {
       return Ok((rules, rem));
     }
-    let (rule, s) = parse_rule(rem)?;
+    let (rule, s) = parse_rule(rem, arena)?;
     rules.push(rule);
     rem = s;
   }

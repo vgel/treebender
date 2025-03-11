@@ -35,10 +35,10 @@ fn parse(g: &Grammar, sentence: &str, print_chart: bool, print_fs: bool) -> Resu
     if trees.len() == 1 { "" } else { "s" }
   );
 
-  for (t, fs) in trees {
+  for (t, idx, arena) in trees {
     println!("{}", t);
     if print_fs {
-      println!("{}", fs);
+      println!("{}", arena.display(idx));
     }
     println!();
   }
